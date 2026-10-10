@@ -1,9 +1,9 @@
 # Publie l'appli sur GitHub Pages à chaque mise à jour de la branche principale.
-# À activer une seule fois : Settings → Pages → Source : « GitHub Actions ».
+# Pages ne déploie que depuis la branche par défaut du dépôt (ici : claude/modest-darwin-0gg57m). Si tu changes de branche par défaut, change aussi la ligne « branches » ci-dessous.
 name: Publier l'appli
 on:
   push:
-    branches: [main, claude/modest-darwin-0gg57m]
+    branches: [claude/modest-darwin-0gg57m]
   workflow_dispatch:
 permissions:
   contents: read
@@ -11,7 +11,7 @@ permissions:
   id-token: write
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   test:
     runs-on: ubuntu-latest
