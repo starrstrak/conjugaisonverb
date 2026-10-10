@@ -166,6 +166,7 @@ views.home = () => {
     <div class="ring" style="--pct:${pct}"><span>${d.count}<small>/${goal}</small></span></div>
     <div><b>Objectif du jour</b><br><small>${d.chest ? '🎁 Coffre ouvert, bravo !' : `Réponds à ${goal} questions pour ouvrir le coffre 🎁`}</small></div>
   </section>
+  ${(() => { const r = readResume(); return r ? `<button class="card featured resume" data-act="resume-game">⏯️ <b>Reprendre ta partie</b><small>${r.asked}/${r.n} questions déjà faites</small></button>` : ''; })()}
   <button class="big primary play" data-act="review">▶ Jouer<small>${due ? `${due} à revoir aujourd'hui` : 'Révision du jour'}</small></button>
   ${featVerbs.length ? `<button class="card featured" data-act="featured">📚 <b>${esc(feat)}</b><small>${featVerbs.length} verbes choisis pour toi</small></button>` : ''}
   <section class="tiles">
@@ -376,6 +377,33 @@ function pickItem(S) {
   return list[list.length - 1];
 }
 
+/* ---------- reprise d'une partie interrompue ---------- */
+const RESUME_KEY = 'conju.resume';
+function saveResume() {
+  const S = A.S; if (!S || S.cfg.timed || A.view !== 'game') return;
+  try {
+    const keys = (arr) => arr.map((it) => it.k);
+    const snap = { pid: prof().id, at: Date.now(), mode: S.cfg.mode, ctx: S.cfg.ctx || null, n: S.n, asked: S.asked, first: S.first, combo: S.combo, maxCombo: S.maxCombo, xp: S.xp, coins: S.coins, answered: S.answered, lvl0: S.lvl0, startedAt: S.startedAt,
+      pool: keys(S.pool).slice(0, 1500), retry: S.retry.map((r) => ({ k: r.item.k, at: r.at })), errors: S.mistakes.length };
+    localStorage.setItem(RESUME_KEY, JSON.stringify(snap));
+  } catch (e) { /* stockage indisponible : tant pis */ }
+}
+function clearResume() { try { localStorage.removeItem(RESUME_KEY); } catch (e) { /* ignore */ } }
+function readResume() {
+  try {
+    const r = JSON.parse(localStorage.getItem(RESUME_KEY) || 'null');
+    if (!r || !prof() || r.pid !== prof().id || Date.now() - r.at > 36e5 * 24 || r.asked >= r.n) return null;
+    return r;
+  } catch (e) { return null; }
+}
+const itemOfKey = (k) => { const [inf, t, pp] = k.split('|'); const v = verbByInf(inf); return v && TENSE_BY_ID[t] && cellsOf(v, t).includes(+pp) ? { v, t, p: +pp, k } : null; };
+function resumeSession() {
+  const r = readResume(); if (!r) return;
+  const pool = r.pool.map(itemOfKey).filter(Boolean);
+  if (!pool.length) { clearResume(); return; }
+  startSession({ mode: r.mode, ctx: r.ctx, pool, n: r.n, restore: r });
+}
+
 function startSession(cfg) {
   const p = prof();
   const pool = cfg.pool || buildPool(cfg.tenses, cfg.verbs);
@@ -383,6 +411,12 @@ function startSession(cfg) {
   const n = cfg.n || (Store.data.settings.sessionLength || 10);
   A.S = { cfg, pool, n, asked: 0, answered: 0, first: 0, combo: 0, maxCombo: 0, xp: 0, coins: 0, mistakes: [], retry: [], lastKey: '', recent: [],
     timeLeft: cfg.timed ? 60 : null, paused: false, q: null, lvl0: Store.levelOf(p.xp), levelUps: [], startedAt: Date.now() };
+  if (cfg.restore) {
+    const r = cfg.restore;
+    Object.assign(A.S, { asked: r.asked, first: r.first, combo: r.combo, maxCombo: r.maxCombo, xp: r.xp, coins: r.coins, answered: r.answered, lvl0: r.lvl0, startedAt: r.startedAt });
+    A.S.retry = r.retry.map((x) => ({ item: itemOfKey(x.k), at: x.at })).filter((x) => x.item);
+    A.S.asked = Math.max(0, A.S.asked - 1); // la question en cours est reposée
+  }
   Store.touchDaily(p);
   A.view = 'game';
   render();
@@ -414,6 +448,7 @@ function nextQuestion() {
   else { item = pickItem(S); S.asked++; }
   S.lastKey = item.k; S.recent.push(item.k); if (S.recent.length > 3) S.recent.shift();
   S.q = buildQuestion(item, isRetry);
+  saveResume();
   renderQuestion();
 }
 
@@ -544,7 +579,7 @@ function renderQuestion() {
       <div class="vcard"><span class="big-e">${esc(q.v.emoji || '📘')}</span><b>${esc(q.v.inf)}</b>
         <button class="small" data-act="say" data-text="${esc(q.v.inf)}" aria-label="Écouter le verbe">🔊</button></div>
       ${prompt}
-      <div id="answer">${main}${q.type === 'type' || q.type === 'choice' ? '<div class="center"><button class="small" data-act="hint">💡 Un indice</button></div><div id="hint"></div>' : ''}</div>
+      <div id="answer">${main}${q.type === 'type' || q.type === 'choice' ? '<div class="center"><button class="small" data-act="hint">💡 Un indice</button></div><div id="hint" aria-live="polite"></div>' : ''}</div>
       <div id="fb"></div>
     </div></div>`);
   const inp = $('#inp');
@@ -568,16 +603,17 @@ function answerChoice(i) {
 function resolve(ok, given, verdict) {
   const S = A.S, q = S.q, p = prof();
   q.done = true; S.paused = true;
-  const weak = q.type === 'pronoun' || q.type === 'tense';
+  const weak = q.type === 'pronoun' || q.type === 'tense' || !!q.hint; // une réponse aidée ne fait pas monter la boîte au-delà de 2
   const expText = first(q.cell);
   const speech = plainText(`${q.t === 'imperatif' ? '' : Conj.pronoun(q.p, plainText(expText)) + ' '}${expText}`).replace("' ", "'");
   const d = Store.touchDaily(p);
   d.count++; S.answered++;
   Store.review(p, q.k, ok, weak);
+  setTimeout(saveResume, 0);
   if (ok) {
     p.stats.correct++;
     let gain = q.retry ? 4 : 10 + Math.min(S.combo, 6) * 2;
-    if (q.hint) gain = Math.min(gain, 5);
+    if (q.hint) gain = Math.min(gain, q.hintLevel >= 2 ? 3 : 6);
     if (!q.retry && !q.hint) { S.first++; S.combo++; S.coins++; p.coins++; S.maxCombo = Math.max(S.maxCombo, S.combo); }
     updCombo();
     S.xp += gain; p.xp += gain;
@@ -667,6 +703,9 @@ function finishSession() {
     if (stars > old) { newStars = stars - old; p.stars[k] = stars; p.coins += newStars * 5; S.coins += newStars * 5; }
   }
   p.stats.sessions++;
+  (p.history = p.history || []).push({ at: Date.now(), mode: cfg.mode, title: cfg.title || '', ctx: cfg.ctx || null, tenses: cfg.tenses || [], first: S.first, total: cfg.timed ? S.answered : S.n, xp: S.xp, stars, errors: S.mistakes.length, secs: Math.round((Date.now() - S.startedAt) / 1000) });
+  if (p.history.length > 100) p.history.splice(0, p.history.length - 100);
+  clearResume();
   if (!cfg.timed && S.first === S.n && S.n >= 5) p.stats.perfect++;
   p.stats.bestCombo = Math.max(p.stats.bestCombo, S.maxCombo);
   if (answered >= 5) Store.bumpStreak(p);
@@ -727,6 +766,7 @@ const actions = {
   'new-profile': () => { closeModal(); A.view = 'welcome'; render(); },
   close: () => closeModal(),
   parent: () => { if (Date.now() < A.gateUntil) go('parent', { tab: 'verbs' }); else Parent.gate(); },
+  'resume-game': () => resumeSession(),
   review: () => { const p = prof(); startSession({ mode: 'review', title: 'Révision', pool: reviewPool(p, 10), n: 10 }); },
   errors: () => {
     const p = prof(), pool = errorsPool(p);
@@ -759,14 +799,24 @@ const actions = {
   'memo-tab': (el) => go('memo', { inf: el.dataset.v, t: el.dataset.t }),
   'memo-tense': (el) => go('memo', { inf: 'manger', t: el.dataset.t }),
   hint: () => {
-    const q = A.S && A.S.q; if (!q || q.done) return;
-    q.hint = true;
-    const T = TENSE_BY_ID[q.t], exp = plainText(first(q.cell)), lines = [];
-    const w = Explain.SUBJ[q.p];
-    if (q.cell.e && !Conj.COMPOUND[q.t]) lines.push(`Avec ${w}, ${Explain.au(T)}, la terminaison est « -${q.cell.e} ».`);
-    else if (Conj.COMPOUND[q.t]) lines.push(`Il faut 2 mots : l'auxiliaire ${q.v.aux === 'etre' ? '« être »' : '« avoir »'} + le participe passé « ${q.v.pp} ».`);
-    lines.push(`La réponse commence par « ${exp.slice(0, Math.min(2, exp.length - 1) || 1)}… »`);
-    $('#hint').innerHTML = `<p class="tip">💡 ${lines.map(esc).join('<br>')}<br><small>(avec un indice, tu gagnes moins d'XP)</small></p>`;
+    const S = A.S, q = S && S.q; if (!q || q.done) return;
+    const max = q.type === 'type' ? 3 : 2;
+    if ((q.hintLevel || 0) >= max) return;
+    q.hintLevel = (q.hintLevel || 0) + 1; q.hint = true;
+    if (q.hintLevel === 1) { const pr = prof(); pr.stats.hints = (pr.stats.hints || 0) + 1; }
+    q.hints = q.hints || Explain.hints(q.v, forms(q.v), q.t, q.p);
+    const h = q.hints, lines = [];
+    lines.push(h.h1);
+    if (q.hintLevel >= 2) lines.push(h.h2);
+    if (q.hintLevel >= 3) lines.push(`<span class="mask">${esc(h.mask)}</span>`);
+    if (q.hintLevel === 2 && q.type === 'choice') { // 50/50 : on retire 2 mauvaises réponses
+      const wrong = shuffle(q.options.map((o, i) => (o.ok ? -1 : i)).filter((i) => i >= 0)).slice(0, 2);
+      wrong.forEach((i) => { const b = $$('.choice')[i]; if (b) { b.disabled = true; b.classList.add('out'); } });
+      lines.push('Je t\'ai retiré 2 mauvaises réponses.');
+    }
+    $('#hint').innerHTML = `<p class="tip">💡 ${lines.map((l) => (l.startsWith('<span') ? l : esc(l))).join('<br>')}<br><small>(avec un indice, tu gagnes moins d'XP)</small></p>`;
+    const b = $('[data-act=hint]');
+    if (b) { if (q.hintLevel >= max) b.hidden = true; else b.textContent = '💡 Encore un indice'; }
   },
   say: (el) => FX.speak(el.dataset.text, true),
   accent: (el) => { const i = $('#inp'); if (!i) return; const s = i.selectionStart ?? i.value.length, e = i.selectionEnd ?? s; i.value = i.value.slice(0, s) + el.dataset.a + i.value.slice(e); i.focus(); i.setSelectionRange(s + 1, s + 1); FX.play('tap'); },
@@ -777,7 +827,7 @@ const actions = {
     modal(`<h2>Tu veux arrêter ?</h2><p>Ta progression est sauvegardée.</p><div class="actions"><button class="big" data-act="resume">Continuer</button><button class="big primary" data-act="quit-ok">Quitter</button></div>`, () => { if (A.S && A.view === 'game' && !A.S.q.done) A.S.paused = false; });
   },
   resume: () => closeModal(),
-  'quit-ok': () => { const m = $('#modal'); m._close = null; closeModal(); const S = A.S; if (S && S.answered) { finishSession(); } else go('home'); },
+  'quit-ok': () => { const m = $('#modal'); m._close = null; closeModal(); const S = A.S; if (S && S.answered) { finishSession(); } else { clearResume(); go('home'); } },
   again: () => { const S = A.S; if (S && S.cfg.pool) { const cfg = Object.assign({}, S.cfg); if (cfg.mode === 'review') cfg.pool = reviewPool(prof(), 10); startSession(cfg); } else if (S) startSession(S.cfg); },
   buy: (el) => {
     const p = prof(), it = SHOP.find((i) => i.id === el.dataset.id); if (!it) return;

@@ -3,7 +3,7 @@
 name: Publier l'appli
 on:
   push:
-    branches: [main]
+    branches: [main, claude/modest-darwin-0gg57m]
   workflow_dispatch:
 permissions:
   contents: read

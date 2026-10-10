@@ -16,7 +16,8 @@ tout reste sur l'appareil.
 | Se souvenir longtemps | Répétition espacée (boîtes de Leitner : 0 / 1 / 3 / 7 / 21 jours) par verbe × temps × personne. « Jouer » = la révision du jour |
 | Comprendre | Frise passé / présent / futur, mot-repère (« Hier », « Demain »…), terminaisons colorées, mini-leçon par temps, **Mémo** avec tous les tableaux |
 | Variété | Aventure (mondes = temps, missions = familles de verbes, 3 étoiles), Défi chrono 60 s, « Je choisis » (temps + verbes), questions « Quel pronom ? » et « Quel temps ? » |
-| Indice | 💡 donne la terminaison et le début du mot (moins d'XP) |
+| Indices | 💡 progressifs et adaptés au temps et au verbe : 1) la méthode (« pars de *nous* au présent… »), 2) un coup de pouce (terminaison, forme voisine) + 2 mauvaises réponses retirées, 3) la réponse à trous (`mang___`). Moins d'XP, et une réponse aidée ne compte pas comme « acquise » |
+| Parties sauvegardées | Chaque réponse est enregistrée aussitôt ; une partie interrompue se **reprend** depuis l'accueil ; historique des parties dans Espace parents ➜ Progrès |
 | Confort | Sons, lecture à voix haute (voix française de l'appareil), police plus grande/espacée (dys), pas de vies, pas de chrono punitif (sauf mode chrono, en pause pendant les explications) |
 
 **Temps** : présent, futur simple, imparfait, passé composé, impératif (de base) · conditionnel, plus-que-parfait,

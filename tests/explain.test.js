@@ -27,3 +27,29 @@ console.log(d('manger','present',3,'mangons'));
 console.log(d('finir','futur',3,'finirions'));
 console.log(d('faire','present',4,'faisez'));
 console.log('explain OK');
+
+// indices progressifs : pertinents et sans fuite de la réponse dès le 1er niveau
+const hh = (inf, t, p) => Ex.hints(V[inf], Conj.conjugate(V[inf]), t, p);
+const exact = (inf, t, p) => Conj.accepted(Conj.conjugate(V[inf])[t][p])[0].replace(/\(e\)|\(s\)/g, '');
+for (const v of verbs) {
+  const f = Conj.conjugate(v);
+  for (const T of Conj.TENSES) {
+    if (!f[T.id]) continue;
+    for (const p of Conj.personsOf(T.id)) {
+      const h = Ex.hints(v, f, T.id, p);
+      assert(h.h1 && h.h2 && h.mask, `${v.inf} ${T.id} ${p}`);
+      assert(!/undefined|NaN/.test(h.h1 + h.h2 + h.mask), `${v.inf} ${T.id} ${p}`);
+      assert(h.mask.length === exact(v.inf, T.id, p).length, `mask ${v.inf} ${T.id} ${p}`);
+      assert(h.mask !== exact(v.inf, T.id, p), `mask révèle tout ${v.inf} ${T.id} ${p}`);
+      // la méthode (niveau 1) ne contient pas la réponse complète (sauf cas très courts)
+      const ans = exact(v.inf, T.id, p);
+      if (ans.length > 4 && T.id !== 'imperatif') assert(!h.h1.includes(`« ${ans} »`) && !h.h1.includes(` ${ans}.`), `h1 révèle ${v.inf} ${T.id} ${p}: ${h.h1}`);
+    }
+  }
+}
+assert(/infinitif/.test(hh('manger', 'futur', 3).h1));
+assert(/irrégulier/.test(hh('aller', 'futur', 3).h1));
+assert(/nous mangeons/.test(hh('manger', 'imparfait', 3).h1));
+assert(/rebelle/.test(hh('aller', 'present', 0).h1) && /nous allons/.test(hh('aller', 'present', 0).h2));
+assert(/auxiliaire « être »/.test(hh('aller', 'passecompose', 4).h1));
+console.log('hints OK');

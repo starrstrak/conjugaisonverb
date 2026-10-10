@@ -26,7 +26,16 @@ const Parent = (() => {
     const body = { verbs: verbsTab, progress: progressTab, settings: settingsTab, share: shareTab }[t]();
     setView(`<button class="back" data-go="home">← Retour au jeu</button><h2 class="title">Espace parents &amp; enseignants</h2>
       <div class="tabs ptabs">${Object.entries(NAMES).map(([k, n]) => `<button class="${k === t ? 'on' : ''}" data-act="ptab" data-t="${k}">${n}</button>`).join('')}</div>${body}`);
+    if (t === 'share') showPersist();
   };
+
+  async function showPersist() {
+    const el = $('#persist'); if (!el) return;
+    let ok = false;
+    try { ok = !!(navigator.storage && navigator.storage.persisted && await navigator.storage.persisted()); } catch (e) { /* ignore */ }
+    const last = Store.data.lastBackup ? new Date(Store.data.lastBackup).toLocaleDateString('fr-CH') : 'jamais';
+    el.innerHTML = `💾 Sauvegarde sur cet appareil : <b>${Store.memoryOnly ? 'désactivée dans ce navigateur ⚠️' : ok ? 'protégée ✔' : 'active (installe l\'appli pour la protéger)'}</b>. Dernière sauvegarde en fichier : <b>${last}</b>.`;
+  }
 
   /* ---------- Verbes ---------- */
   let vq = '', vf = 'all';
@@ -192,10 +201,11 @@ const Parent = (() => {
     const kinds = Object.entries(p.errKinds).sort((a, b) => b[1] - a[1]).slice(0, 6);
     const maxK = kinds.length ? kinds[0][1] : 1;
     return `<div class="chips">${ps.map((x) => `<button class="pill ${x.id === p.id ? 'on' : ''}" data-act="ppick" data-id="${esc(x.id)}"><span class="dot" style="background:${esc(x.color)}"></span> ${esc(x.name)}</button>`).join('')}</div>
-    <section class="stats card"><div><b>${p.stats.sessions}</b><small>parties</small></div><div><b>${total}</b><small>questions</small></div><div><b>${acc}%</b><small>de réussite</small></div><div><b>🔥 ${p.streak.count}</b><small>jours d'affilée</small></div></section>
+    <section class="stats card"><div><b>${p.stats.sessions}</b><small>parties</small></div><div><b>${total}</b><small>questions</small></div><div><b>${acc}%</b><small>de réussite</small></div><div><b>🔥 ${p.streak.count}</b><small>jours d'affilée</small></div><div><b>${p.stats.hints || 0}</b><small>indices utilisés</small></div></section>
     <h3>Temps travaillés</h3>${perTense || '<p class="muted">Pas encore de données.</p>'}
     <h3>Types d'erreurs fréquentes</h3>${kinds.map(([k, n]) => `<div class="prow"><span>${esc(KIND_LABEL[k] || k)}</span><i class="bar"><u style="width:${(n / maxK) * 100}%;background:#ef476f"></u></i><small>${n}</small></div>`).join('') || '<p class="muted">Aucune erreur enregistrée 🎉</p>'}
     <h3>Verbes à retravailler</h3><div class="chips">${weakTop.map(([i, n]) => `<span class="pill">${esc(i)} <small>${n}</small></span>`).join('') || '<span class="muted">—</span>'}</div>
+    <h3>Dernières parties</h3><div class="hist">${(p.history || []).slice(-8).reverse().map((h) => `<div><span>${new Date(h.at).toLocaleDateString('fr-CH', { day: 'numeric', month: 'short' })} · ${esc({ mission: 'Mission', review: 'Révision', errors: 'Mes erreurs', practice: 'Entraînement', chrono: 'Chrono', list: 'Liste' }[h.mode] || 'Partie')}${h.ctx ? ' · ' + esc((TENSE_BY_ID[h.ctx.tense] || {}).name || '') : ''}</span><b>${h.first}/${h.total} ${'★'.repeat(h.stars || 0)}</b></div>`).join('') || '<span class="muted">—</span>'}</div>
     <h3>Dernières erreurs</h3><div class="errlog">${p.errLog.slice(-8).reverse().map((e) => `<div><b>${esc(e.inf)}</b> · ${esc((TENSE_BY_ID[e.t] || {}).name || e.t)} · ${esc(PERSONS[e.p])} : <s>${esc(e.given)}</s> → <b>${esc(plainText(e.exp))}</b></div>`).join('') || '<span class="muted">—</span>'}</div>
     <button class="small danger" data-act="preset-profile" data-id="${esc(p.id)}">Remettre à zéro la progression de ${esc(p.name)}</button>
     <button class="small danger" data-act="pdel-profile" data-id="${esc(p.id)}">Supprimer le joueur</button>`;
@@ -221,7 +231,13 @@ const Parent = (() => {
   /* ---------- Partage ---------- */
   function shareTab() {
     const custom = A.verbs.filter((v) => v._custom || v._mod);
-    return `<section class="card"><h3>👩‍🏫 Partager des verbes avec quelqu'un</h3>
+    const appUrl = location.origin + location.pathname;
+    return `<section class="card"><h3>📲 Donner l'appli à quelqu'un</h3>
+      <p>L'appli est publique : n'importe qui peut l'ouvrir avec ce lien (téléphone, tablette ou ordinateur), sans compte ni installation.</p>
+      <input readonly value="${esc(appUrl)}" id="appurl" aria-label="Adresse de l'appli">
+      <div class="actions"><button class="big primary" data-act="s-appcopy">📋 Copier le lien</button>${navigator.share ? '<button class="big" data-act="s-appshare">📤 Envoyer…</button>' : ''}</div>
+      <p id="persist" class="muted"></p></section>
+    <section class="card"><h3>👩‍🏫 Partager des verbes avec quelqu'un</h3>
       <p>Chaque personne qui ajoute des verbes dans <b>Verbes ➜ Ajouter</b> peut les envoyer aux autres : un simple lien à coller dans un message. Il suffit de l'ouvrir sur l'appareil de l'enfant pour que les verbes s'ajoutent (rien n'est écrasé sans demander).</p>
       <label>Ton prénom (pour signer)<input data-author value="${esc(Store.data.author || '')}" maxlength="30" placeholder="Aurore"></label>
       <p><b>${custom.length}</b> verbe${custom.length > 1 ? 's' : ''} ajouté${custom.length > 1 ? 's' : ''} ou modifié${custom.length > 1 ? 's' : ''} à partager.</p>
@@ -276,11 +292,13 @@ const Parent = (() => {
         <div class="actions"><button class="big" data-act="s-copy">📋 Copier</button>${navigator.share ? '<button class="big" data-act="s-native">📤 Envoyer…</button>' : ''}</div>
         ${url.length > 6000 ? '<p class="warn">Ce lien est long : certains messages pourraient le couper. Préfère le fichier.</p>' : ''}`;
     },
+    's-appcopy': async () => { const t = $('#appurl'); try { await navigator.clipboard.writeText(t.value); } catch (e) { t.select(); document.execCommand('copy'); } toast('Lien copié ✔'); },
+    's-appshare': () => navigator.share({ title: 'Conjugo', text: 'Conjugo : apprendre la conjugaison en jouant', url: $('#appurl').value }).catch(() => {}),
     's-copy': async () => { const t = $('#shareurl'); try { await navigator.clipboard.writeText(t.value); toast('Lien copié ✔'); } catch (e) { t.select(); document.execCommand('copy'); toast('Lien copié ✔'); } },
     's-native': () => navigator.share({ title: 'Verbes pour Conjugo', text: 'Voici des verbes à ajouter dans l\'appli de conjugaison :', url: $('#shareurl').value }).catch(() => {}),
     's-export': () => download('verbes-conjugo.json', { v: 1, by: Store.data.author || '', verbs: A.verbs.filter((v) => v._custom || v._mod).map(({ _custom, _mod, ...v }) => v) }),
     's-import': () => pickFile((o) => confirmImport(Array.isArray(o) ? o : o.verbs || [], o.by || '')),
-    's-backup': () => download('sauvegarde-conjugo.json', { app: 'conjugo', v: 1, data: Store.data }),
+    's-backup': () => { download('sauvegarde-conjugo.json', { app: 'conjugo', v: 1, data: Store.data }); Store.data.lastBackup = Date.now(); Store.save(); showPersist(); },
     's-restore': () => pickFile((o) => {
       if (!o || o.app !== 'conjugo' || !o.data) { toast('Ce n\'est pas une sauvegarde Conjugo'); return; }
       if (!confirm('Remplacer toutes les données actuelles par cette sauvegarde ?')) return;

@@ -171,5 +171,78 @@
     return { kind: 'tense', title: 'Quel est ce temps ?', lines: [`${quote(info.text)} est ${info.tenseName}.`, info.hint || ''].filter(Boolean), tip: info.tip };
   }
 
-  return { diagnose, diagnoseRecognition, endingTable, SUBJ, du, au, le };
+
+  const plain = (s) => String(s).replace(/\(e\)|\(s\)/g, '');
+  /** Réponse cachée : « mang___ », « a_ m_____ »… */
+  function mask(exp, e) {
+    if (e && exp.endsWith(e) && exp.length > e.length) return exp.slice(0, -e.length) + '_'.repeat(e.length);
+    return exp.split(' ').map((t) => {
+      const k = t.length <= 1 ? 0 : t.length <= 2 ? 1 : Math.ceil(t.length / 2);
+      return t.slice(0, k) + '_'.repeat(t.length - k);
+    }).join(' ');
+  }
+
+  /**
+   * Indices progressifs et adaptés au temps, à la personne et au verbe.
+   * h1 = la méthode (sans donner la réponse) · h2 = un coup de pouce précis · mask = lettres cachées.
+   */
+  function hints(verb, forms, tense, p) {
+    const cell = forms[tense][p];
+    const exp = plain(first(cell));
+    const w = SUBJ[p];
+    const e = cell.e;
+    const pres = forms.present;
+    const endTxt = e ? `Avec ${w}, la terminaison est « -${e} ».` : '';
+    const tStem = e && exp.endsWith(e) ? exp.slice(0, -e.length) : exp; // radical réellement utilisé (mang-, commenç-…)
+    let h1, h2;
+    if (COMPOUND[tense]) {
+      const auxName = verb.aux === 'etre' ? 'être' : 'avoir';
+      const when = { present: 'au présent', imparfait: "à l'imparfait", futur: 'au futur' }[COMPOUND[tense]];
+      h1 = `Il faut 2 mots : l'auxiliaire « ${auxName} » ${when} + le participe passé.`;
+      h2 = `L'auxiliaire est « ${exp.split(' ')[0]} » et le participe passé de « ${verb.inf} » est « ${verb.pp} ».${verb.aux === 'etre' ? ` Avec « être », il s'accorde avec ${w}.` : ''}`;
+    } else if (tense === 'present') {
+      if (e !== '' && verb.type !== 'irr' && !verb.pres) {
+        h1 = `Enlève « -${verb.inf.slice(-2)} » de l'infinitif pour trouver le radical, puis ajoute la terminaison de ${w}.`;
+        h2 = `${endTxt} Le radical est « ${tStem}- ».`.trim();
+      } else {
+        const q = p === 3 ? 5 : 3;
+        h1 = `« ${verb.inf} » est un verbe rebelle : sa forme change beaucoup. Redis le verbe à voix haute avec ${w}.`;
+        h2 = `Pour t'aider, voici une autre forme : ${PERSONS[q]} ${plain(first(pres[q]))}.`;
+      }
+    } else if (tense === 'imparfait') {
+      const stem = tStem;
+      const nous = pres[3].t;
+      if (nous.endsWith('ons')) {
+        h1 = `Pars de « nous » au présent : « nous ${nous} ». Enlève -ons, puis ajoute la terminaison de l'imparfait.`;
+      } else {
+        h1 = `Le radical de l'imparfait de « ${verb.inf} » est irrégulier : « ${stem}- ».`;
+      }
+      h2 = `${endTxt} Le radical est « ${stem}- ».`.trim();
+    } else if (tense === 'futur' || tense === 'conditionnel') {
+      const base = forms.futur[0].t.slice(0, -2);
+      const regular = base === verb.inf || base === verb.inf.slice(0, -1);
+      h1 = regular
+        ? `${tense === 'futur' ? 'Au futur' : 'Au conditionnel'}, garde l'infinitif en entier : « ${verb.inf} »${verb.inf.endsWith('re') ? ' (les verbes en -re perdent leur e)' : ''}.`
+        : `Attention : « ${verb.inf} » a un radical irrégulier au ${tense === 'futur' ? 'futur' : 'conditionnel'}.`;
+      if (tense === 'conditionnel') h1 += " Puis les terminaisons de l'imparfait.";
+      h2 = `Le radical est « ${base}- ». ${endTxt}`.trim();
+    } else if (tense === 'subjonctif') {
+      h1 = verb.forms && verb.forms.subjonctif
+        ? `Le subjonctif de « ${verb.inf} » est très irrégulier : à apprendre par cœur.`
+        : `Après « il faut que », pars de « ils » au présent (ils ${plain(first(pres[5]))}), enlève -ent et ajoute la terminaison.`;
+      h2 = `${endTxt} ${p === 3 || p === 4 ? 'Pour nous et vous, le radical est celui de « nous » au présent.' : ''}`.trim();
+    } else if (tense === 'imperatif') {
+      h1 = `L'impératif ressemble au présent avec ${w}, mais sans le pronom.${p === 1 && /er$/.test(verb.inf) ? ' Avec « tu », les verbes en -er n\'ont pas de -s.' : ''}`;
+      h2 = `Au présent : ${PERSONS[p]} ${plain(first(pres[p]))}.`;
+    } else { // passé simple
+      h1 = verb.type === 'er' || verb.inf === 'aller'
+        ? "Verbes en -er : -ai, -as, -a, -âmes, -âtes, -èrent."
+        : "Beaucoup d'autres verbes : -is, -is, -it, -îmes, -îtes, -irent (ou -us, -us, -ut, -ûmes, -ûtes, -urent).";
+      h2 = endTxt || `Pense à la forme de « ${verb.inf} » dans un conte.`;
+    }
+    if (!h2) h2 = `La réponse commence par « ${exp.slice(0, Math.min(2, exp.length))}… ».`;
+    return { h1, h2, mask: mask(exp, e) };
+  }
+
+  return { diagnose, diagnoseRecognition, endingTable, hints, SUBJ, du, au, le };
 });
