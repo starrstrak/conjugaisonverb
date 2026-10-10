@@ -4,7 +4,7 @@
   "private": true,
   "description": "Conjugo – appli ludique pour apprendre la conjugaison (8-9 ans). Aucune dépendance, aucune compilation.",
   "scripts": {
-    "test": "node tests/engine.test.js && node tests/explain.test.js",
+    "test": "node tests/engine.test.js && node tests/explain.test.js && node tests/sync.test.js",
     "start": "python3 -m http.server 8080"
   }
 }

@@ -1,0 +1,16 @@
+rules_version = '2';
+// Règles Firestore pour la synchro de Conjugo.
+// Principe : pas de comptes ; chaque famille a un « code famille » long et aléatoire (24 caractères) qui sert de chemin.
+// On peut lire/écrire un document SI on connaît son chemin exact ; il est impossible de lister les familles ni leurs documents.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /families/{fid}/docs/{docId} {
+      allow get: if fid.size() >= 16 && fid.size() <= 40;
+      allow create, update: if fid.size() >= 16 && fid.size() <= 40
+        && request.resource.data.keys().hasOnly(['j', 't'])
+        && request.resource.data.j is string
+        && request.resource.data.j.size() < 900000;
+      allow list, delete: if false;
+    }
+  }
+}

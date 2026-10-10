@@ -1,8 +1,8 @@
 /* Service worker : l'appli fonctionne hors-ligne. Change CACHE pour forcer une mise à jour. */
-const CACHE = 'conjugo-v2';
+const CACHE = 'conjugo-v3';
 const FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
-  'js/conjugate.js', 'js/explain.js', 'js/store.js', 'js/fx.js', 'js/app.js', 'js/parent.js', 'js/main.js',
+  'js/conjugate.js', 'js/explain.js', 'js/store.js', 'js/fx.js', 'js/sync.js', 'js/app.js', 'js/parent.js', 'js/main.js',
   'data/verbs.json', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-180.png',
 ];
 self.addEventListener('install', (e) => {

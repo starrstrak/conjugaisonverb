@@ -202,3 +202,6 @@ textarea { font-size: .8rem; word-break: break-all; }
 .mask { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 1.5rem; font-weight: 800; letter-spacing: .25em; color: var(--c); }
 .resume { background: #fff8e1; border: 3px dashed var(--accent); }
 .hist div { display: flex; gap: .5rem; justify-content: space-between; background: #fff; border-radius: 10px; padding: .3rem .7rem; margin: .3rem 0; font-size: .95rem; }
+
+.ok-t { color: #137a4a; } .bad-t { color: var(--bad); }
+.big small { display: block; font-weight: 600; font-size: .8rem; color: var(--muted); }

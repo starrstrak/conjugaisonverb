@@ -75,6 +75,7 @@ function render() {
   document.body.dataset.theme = (p && p.equipped.theme) || '';
   document.body.classList.toggle('easy', !!settings().easyFont);
   FX.configure({ sound: settings().sound, speech: settings().speech });
+  if (p && A.view === 'welcome' && !(A.params && A.params.add)) A.view = 'home'; // un joueur est arrivé (synchro) : on quitte l'accueil de bienvenue
   const inGame = A.view === 'game';
   $('#nav').hidden = inGame || !p || ['welcome', 'parent'].includes(A.view);
   $('#top').hidden = inGame || !p || A.view === 'welcome';
@@ -93,9 +94,11 @@ function renderTop(p) {
     <span class="chip" title="Jours d'affilée">🔥 ${p.streak.count}</span>
     <span class="chip lvl" title="Niveau ${lvl}">⭐ ${lvl}<i class="bar"><u style="width:${Math.round((cur / need) * 100)}%"></u></i></span>
     <span class="chip" title="Pièces">🪙 ${p.coins}</span>
+    <button class="chip ghost" id="syncchip" data-act="sync-chip" aria-label="Synchronisation" ${Sync.on ? '' : 'hidden'}>${syncIcon()}</button>
     <button class="chip ghost" data-act="parent" aria-label="Espace parents">🔒</button>`;
 }
 
+const syncIcon = () => ({ busy: '☁️⟳', error: '☁️⚠️', idle: '☁️✓', off: '' }[Sync.on ? (Sync.state.status === 'off' ? 'idle' : Sync.state.status) : 'off']);
 const views = {};
 
 /* ----- accueil de bienvenue / profils ----- */
@@ -763,10 +766,11 @@ const actions = {
       <button class="big" data-act="new-profile">➕ Nouveau joueur</button><button class="small" data-act="close">Fermer</button>`);
   },
   'pick-profile-m': (el) => { Store.selectProfile(el.dataset.id); closeModal(); go('home'); },
-  'new-profile': () => { closeModal(); A.view = 'welcome'; render(); },
+  'new-profile': () => { closeModal(); A.view = 'welcome'; A.params = { add: true }; render(); },
   close: () => closeModal(),
   parent: () => { if (Date.now() < A.gateUntil) go('parent', { tab: 'verbs' }); else Parent.gate(); },
   'resume-game': () => resumeSession(),
+  'sync-chip': () => { Sync.run(); toast(Sync.state.status === 'error' ? 'Synchro : ' + Sync.state.error : 'Synchronisation…'); },
   review: () => { const p = prof(); startSession({ mode: 'review', title: 'Révision', pool: reviewPool(p, 10), n: 10 }); },
   errors: () => {
     const p = prof(), pool = errorsPool(p);

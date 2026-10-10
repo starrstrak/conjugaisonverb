@@ -232,7 +232,21 @@ const Parent = (() => {
   function shareTab() {
     const custom = A.verbs.filter((v) => v._custom || v._mod);
     const appUrl = location.origin + location.pathname;
-    return `<section class="card"><h3>📲 Donner l'appli à quelqu'un</h3>
+    const sy = Sync.on ? Store.data.sync : null;
+    const syncCard = sy ? `<section class="card"><h3>☁️ Synchronisation entre appareils : <span class="ok-t">activée</span></h3>
+      <p class="muted">${sy.scope === 'verbs' ? 'Cet appareil synchronise les <b>verbes</b> et les réglages.' : 'Cet appareil synchronise les <b>verbes, réglages et joueurs</b>.'}
+        ${Sync.state.status === 'error' ? `<br><b class="bad-t">⚠️ ${esc(Sync.state.error)}</b>` : Sync.state.status === 'busy' ? '<br>Synchronisation…' : sy.last ? `<br>Dernière synchro : <b>${new Date(sy.last).toLocaleString('fr-CH', { dateStyle: 'short', timeStyle: 'short' })}</b>` : ''}</p>
+      <button class="big" data-act="sync-now">🔄 Synchroniser maintenant</button>
+      <p><b>Ajouter un appareil :</b> ouvre ce lien dessus.</p>
+      <div class="actions"><button class="big" data-act="sync-link" data-s="all">👧 Pour un enfant<small>verbes + joueurs</small></button><button class="big" data-act="sync-link" data-s="verbs">👩‍🏫 Pour Aurore<small>verbes seulement</small></button></div>
+      <div id="synclink"></div>
+      <button class="small danger" data-act="sync-off">Arrêter la synchro sur cet appareil</button></section>`
+      : `<section class="card"><h3>☁️ Synchroniser plusieurs appareils</h3>
+      <p>Les verbes d'Aurore, les réglages et la progression des enfants se retrouvent sur tous les appareils, automatiquement. Il faut une fois créer une petite base Firebase gratuite (5 min, voir <b>SYNC.md</b> dans le dépôt), puis coller sa configuration ici :</p>
+      <textarea id="fbcfg" rows="5" placeholder='const firebaseConfig = { apiKey: "…", projectId: "…", … };'></textarea>
+      <button class="big primary" data-act="sync-enable">Activer la synchro</button>
+      <p class="muted">Déjà configurée sur un autre appareil ? Ouvre simplement le lien de synchro qu'on t'a envoyé.</p></section>`;
+    return `${syncCard}<section class="card"><h3>📲 Donner l'appli à quelqu'un</h3>
       <p>L'appli est publique : n'importe qui peut l'ouvrir avec ce lien (téléphone, tablette ou ordinateur), sans compte ni installation.</p>
       <input readonly value="${esc(appUrl)}" id="appurl" aria-label="Adresse de l'appli">
       <div class="actions"><button class="big primary" data-act="s-appcopy">📋 Copier le lien</button>${navigator.share ? '<button class="big" data-act="s-appshare">📤 Envoyer…</button>' : ''}</div>
@@ -292,6 +306,17 @@ const Parent = (() => {
         <div class="actions"><button class="big" data-act="s-copy">📋 Copier</button>${navigator.share ? '<button class="big" data-act="s-native">📤 Envoyer…</button>' : ''}</div>
         ${url.length > 6000 ? '<p class="warn">Ce lien est long : certains messages pourraient le couper. Préfère le fichier.</p>' : ''}`;
     },
+    'sync-enable': async () => {
+      const c = Sync.parseFirebaseConfig($('#fbcfg').value || '');
+      if (!c) { toast('Configuration non reconnue : copie le bloc « firebaseConfig » en entier'); return; }
+      await Sync.enable(c); toast(Sync.state.status === 'error' ? 'Erreur : ' + Sync.state.error : 'Synchronisation activée ✔'); render();
+    },
+    'sync-now': async () => { await Sync.run(); render(); },
+    'sync-link': async (el) => {
+      const link = Sync.joinLink(el.dataset.s);
+      $('#synclink').innerHTML = `<textarea readonly rows="4" id="shareurl">${esc(link)}</textarea><div class="actions"><button class="big" data-act="s-copy">📋 Copier</button>${navigator.share ? '<button class="big" data-act="s-native">📤 Envoyer…</button>' : ''}</div><p class="warn">Ce lien donne accès aux données de la famille : ne l'envoie qu'à des personnes de confiance.</p>`;
+    },
+    'sync-off': () => { if (confirm('Arrêter la synchronisation sur cet appareil ? Les données restent ici, mais ne seront plus partagées.')) { Sync.disable(); render(); } },
     's-appcopy': async () => { const t = $('#appurl'); try { await navigator.clipboard.writeText(t.value); } catch (e) { t.select(); document.execCommand('copy'); } toast('Lien copié ✔'); },
     's-appshare': () => navigator.share({ title: 'Conjugo', text: 'Conjugo : apprendre la conjugaison en jouant', url: $('#appurl').value }).catch(() => {}),
     's-copy': async () => { const t = $('#shareurl'); try { await navigator.clipboard.writeText(t.value); toast('Lien copié ✔'); } catch (e) { t.select(); document.execCommand('copy'); toast('Lien copié ✔'); } },
@@ -320,9 +345,10 @@ const Parent = (() => {
     if (t.dataset.set) {
       const k = t.dataset.set; const s = settings();
       s[k] = t.type === 'checkbox' ? t.checked : (['dailyGoal', 'sessionLength'].includes(k) ? +t.value : t.value);
+      if (['dailyGoal', 'sessionLength', 'inputMode', 'autoUnlock', 'featuredList'].includes(k)) Store.bumpSettings();
       Store.save(); FX.configure({ sound: s.sound, speech: s.speech }); document.body.classList.toggle('easy', !!s.easyFont);
     } else if (t.dataset.tense) {
-      settings().tenses[t.dataset.tense] = t.checked; Store.save();
+      settings().tenses[t.dataset.tense] = t.checked; Store.bumpSettings(); Store.save();
     } else if (t.id === 'pvf') { vf = t.value; render(); }
   });
   document.addEventListener('input', (e) => {
@@ -331,5 +357,19 @@ const Parent = (() => {
     else if (t.dataset && t.dataset.author !== undefined) { Store.data.author = t.value.slice(0, 30); Store.save(); }
   });
 
-  return { gate, actions, confirmImport };
+  function confirmJoin(j) {
+    const n = Store.data.profiles.length;
+    modal(`<h2>☁️ Rejoindre la synchronisation ?</h2>
+      <p>${j.scope === 'verbs' ? 'Cet appareil recevra et enverra les <b>verbes</b> et les réglages.' : 'Cet appareil recevra et enverra les <b>verbes, réglages et joueurs</b>.'}</p>
+      ${j.scope === 'all' && n ? `<p class="warn">Les ${n} joueur${n > 1 ? 's' : ''} déjà présent${n > 1 ? 's' : ''} sur cet appareil seront ajoutés à la famille. Pour retrouver un enfant déjà créé ailleurs, mieux vaut rejoindre <b>avant</b> de le recréer ici.</p>` : ''}
+      <div class="actions"><button class="big" data-act="close">Non merci</button><button class="big primary" id="dojoin">Rejoindre ✔</button></div>`);
+    $('#dojoin').onclick = async () => {
+      closeModal(); toast('Synchronisation…');
+      await Sync.enable(j);
+      refreshVerbs(); if (!Store.profile() && Store.data.profiles.length) Store.selectProfile(Store.data.profiles[0].id);
+      toast(Sync.state.status === 'error' ? 'Erreur : ' + Sync.state.error : 'Appareil synchronisé ✔'); render();
+    };
+  }
+
+  return { gate, actions, confirmImport, confirmJoin };
 })();

@@ -41,7 +41,13 @@ Accès protégé par un petit calcul. On y trouve :
    Chaque case de l'aperçu est modifiable ; les cases changées sont surlignées.
 4. Enregistrer : le verbe apparaît aussitôt dans les missions, le mémo et les révisions.
 
-### Partager avec Aurore (ou n'importe qui)
+### ☁️ Synchroniser plusieurs appareils (optionnel)
+
+Verbes, réglages et progression se retrouvent sur tous les appareils (Firebase gratuit, sans compte pour les enfants).
+Mise en place unique (~5 min) : voir **[SYNC.md](SYNC.md)**. Aurore reçoit un lien « verbes seulement » : ses ajouts arrivent seuls chez l'enfant.
+Sans configuration, l'appli marche exactement comme avant (données locales + liens/fichiers).
+
+### Partager avec Aurore (ou n'importe qui) sans synchro
 
 Il n'y a **pas de serveur** : c'est volontaire (simple, gratuit, privé). Les verbes se partagent par lien :
 
@@ -90,11 +96,11 @@ En local : `npm start` puis http://localhost:8080 (ou n'importe quel serveur sta
 Aucune dépendance ni compilation : HTML + CSS + JavaScript.
 
 * `js/conjugate.js` moteur de conjugaison (règles + exceptions) · `js/explain.js` diagnostic des erreurs
-* `js/store.js` sauvegarde, profils, répétition espacée, partage · `js/fx.js` sons, voix, confettis, mascotte
+* `js/store.js` sauvegarde, profils, répétition espacée, partage, fusion · `js/sync.js` synchro Firestore (REST) · `firestore.rules` règles à publier · `js/fx.js` sons, voix, confettis, mascotte
 * `js/app.js` écrans et jeu · `js/parent.js` espace parents · `sw.js` mode hors-ligne
-* `tests/` : `npm test` vérifie ~150 formes conjuguées et le diagnostic d'erreurs.
+* `tests/` : `npm test` vérifie ~150 formes conjuguées, le diagnostic d'erreurs, les indices et la fusion de synchro.
 
 ## Idées pour la suite
 
-Synchronisation en ligne des verbes entre appareils (petit service gratuit), verbes pronominaux (se laver), conditionnel/subjonctif passés,
+Verbes pronominaux (se laver), conditionnel/subjonctif passés,
 dictée audio, défi à deux, plusieurs classes/élèves pour un enseignant.

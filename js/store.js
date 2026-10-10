@@ -26,7 +26,7 @@
     stats: { sessions: 0, correct: 0, wrong: 0, bestCombo: 0, perfect: 0, chronoBest: 0, fixed: 0 },
     errKinds: {}, errLog: [], created: Date.now(),
   });
-  const emptyData = () => ({ v: 1, settings: defaultSettings(), profiles: [], current: '', customVerbs: [], hiddenBase: [], author: '' });
+  const emptyData = () => ({ v: 1, settings: defaultSettings(), profiles: [], current: '', customVerbs: [], hiddenBase: [], author: '', verbMeta: { tomb: {}, hid: {} }, settingsT: 0, delP: {}, sync: null });
 
   let data = emptyData();
   let base = [];
@@ -42,12 +42,17 @@
         data.settings = Object.assign(defaultSettings(), d.settings || {});
         data.settings.tenses = Object.assign(defaultSettings().tenses, (d.settings || {}).tenses || {});
         data.profiles = (d.profiles || []).map((p) => Object.assign(newProfile(p.name || '?'), p));
+        data.verbMeta = Object.assign({ tomb: {}, hid: {} }, d.verbMeta || {});
+        // anciennes données : verbes masqués sans date → on leur en donne une
+        (data.hiddenBase || []).forEach((i) => { if (!data.verbMeta.hid[i]) data.verbMeta.hid[i] = { h: 1, t: 1 }; });
       }
     } catch (e) { memoryOnly = true; }
   }
-  function save() {
+  /** quiet = true : enregistrement sans « modification utilisateur » (fusion de synchro) */
+  function save(quiet) {
+    if (!quiet) { const p = profile(); if (p) p.t = Date.now(); }
     try { localStorage.setItem(KEY, JSON.stringify(data)); memoryOnly = false; } catch (e) { memoryOnly = true; }
-    listeners.forEach((f) => f());
+    if (!quiet) listeners.forEach((f) => f());
   }
 
   /* ---------- verbes ---------- */
@@ -98,17 +103,26 @@
     c.updated = Date.now();
     const i = data.customVerbs.findIndex((x) => x.inf === c.inf);
     if (i >= 0) data.customVerbs[i] = c; else data.customVerbs.push(c);
-    data.hiddenBase = data.hiddenBase.filter((x) => x !== c.inf);
+    delete data.verbMeta.tomb[c.inf];
+    setHidden(c.inf, false);
     save(); return true;
+  }
+  const syncHidden = () => { data.hiddenBase = Object.entries(data.verbMeta.hid).filter(([, v]) => v.h).map(([k]) => k); };
+  function setHidden(inf, h) {
+    if (!h && !data.verbMeta.hid[inf]) return;
+    data.verbMeta.hid[inf] = { h: h ? 1 : 0, t: Date.now() };
+    syncHidden();
   }
   function removeVerb(inf) {
     data.customVerbs = data.customVerbs.filter((x) => x.inf !== inf);
-    if (base.some((b) => b.inf === inf)) { if (!data.hiddenBase.includes(inf)) data.hiddenBase.push(inf); }
+    data.verbMeta.tomb[inf] = Date.now();
+    if (base.some((b) => b.inf === inf)) setHidden(inf, true);
     save();
   }
   function restoreVerb(inf) { // retire la modification / réaffiche un verbe de base
     data.customVerbs = data.customVerbs.filter((x) => x.inf !== inf);
-    data.hiddenBase = data.hiddenBase.filter((x) => x !== inf);
+    data.verbMeta.tomb[inf] = Date.now();
+    setHidden(inf, false);
     save();
   }
   /** Fusionne des verbes importés (le plus récent gagne). Retourne {added, updated} */
@@ -117,7 +131,7 @@
     for (const r of list) {
       const c = sanitizeVerb(r); if (!c) continue;
       const i = data.customVerbs.findIndex((x) => x.inf === c.inf);
-      if (i < 0) { data.customVerbs.push(c); added++; data.hiddenBase = data.hiddenBase.filter((x) => x !== c.inf); }
+      if (i < 0) { data.customVerbs.push(c); added++; delete data.verbMeta.tomb[c.inf]; setHidden(c.inf, false); }
       else if ((c.updated || 0) >= (data.customVerbs[i].updated || 0)) { data.customVerbs[i] = c; updated++; }
     }
     save(); return { added, updated };
@@ -153,6 +167,7 @@
   function selectProfile(id) { if (data.profiles.some((p) => p.id === id)) { data.current = id; save(); } }
   function deleteProfile(id) {
     data.profiles = data.profiles.filter((p) => p.id !== id);
+    data.delP[id] = Date.now();
     if (data.current === id) data.current = data.profiles[0] ? data.profiles[0].id : '';
     save();
   }
@@ -176,6 +191,7 @@
       if (!weak) c.b = Math.max(0, c.b - 2);
     }
     c.d = addDays(today(), INTERVALS[c.b]);
+    c.u = Date.now();
     if (ok && c.fix) { c.fix = Math.max(0, c.fix - 1); if (!c.fix) prof.stats.fixed++; }
     if (!ok) c.fix = 2;
     return c;
@@ -201,14 +217,90 @@
     return prof.streak.count;
   }
 
+
+  /* ---------- fusion pour la synchronisation entre appareils ---------- */
+  const stable = (o) => JSON.stringify(o, (k, v) => (v && typeof v === 'object' && !Array.isArray(v) ? Object.keys(v).sort().reduce((a, x) => { a[x] = v[x]; return a; }, {}) : v));
+  const maxBy = (a, b, f) => (f(a) >= f(b) ? a : b);
+
+  function mergeProfile(a, b) {
+    const newer = (a.t || 0) >= (b.t || 0) ? a : b;
+    const m = JSON.parse(JSON.stringify(newer)); // nom, couleur, pièces, objets : valeurs de la version la plus récente
+    m.id = a.id;
+    m.t = Math.max(a.t || 0, b.t || 0);
+    m.xp = Math.max(a.xp || 0, b.xp || 0);
+    m.cards = {};
+    for (const k of new Set([...Object.keys(a.cards || {}), ...Object.keys(b.cards || {})])) {
+      const x = (a.cards || {})[k], y = (b.cards || {})[k];
+      const w = !x ? y : !y ? x : maxBy(x, y, (c) => c.u || 0);
+      m.cards[k] = Object.assign({}, w, { c: Math.max((x || {}).c || 0, (y || {}).c || 0), w: Math.max((x || {}).w || 0, (y || {}).w || 0) });
+    }
+    m.stars = {};
+    for (const k of new Set([...Object.keys(a.stars || {}), ...Object.keys(b.stars || {})])) m.stars[k] = Math.max((a.stars || {})[k] || 0, (b.stars || {})[k] || 0);
+    m.badges = {};
+    for (const k of new Set([...Object.keys(a.badges || {}), ...Object.keys(b.badges || {})])) m.badges[k] = Math.min(...[(a.badges || {})[k], (b.badges || {})[k]].filter(Boolean));
+    m.owned = [...new Set([...(a.owned || []), ...(b.owned || [])])];
+    m.stats = {};
+    for (const k of new Set([...Object.keys(a.stats || {}), ...Object.keys(b.stats || {})])) m.stats[k] = Math.max((a.stats || {})[k] || 0, (b.stats || {})[k] || 0);
+    m.errKinds = {};
+    for (const k of new Set([...Object.keys(a.errKinds || {}), ...Object.keys(b.errKinds || {})])) m.errKinds[k] = Math.max((a.errKinds || {})[k] || 0, (b.errKinds || {})[k] || 0);
+    const union = (x, y, cap) => { const seen = new Set(); return [...(x || []), ...(y || [])].filter((e) => !seen.has(e.at) && seen.add(e.at)).sort((p, q) => p.at - q.at).slice(-cap); };
+    m.errLog = union(a.errLog, b.errLog, 60);
+    m.history = union(a.history, b.history, 100);
+    const sa = a.streak || { count: 0, last: '' }, sb = b.streak || { count: 0, last: '' };
+    m.streak = sa.last === sb.last ? { count: Math.max(sa.count, sb.count), last: sa.last } : (sa.last > sb.last ? sa : sb);
+    const da = a.daily || { date: '', count: 0, chest: false }, db = b.daily || { date: '', count: 0, chest: false };
+    m.daily = da.date === db.date ? { date: da.date, count: Math.max(da.count, db.count), chest: !!(da.chest || db.chest) } : (da.date > db.date ? da : db);
+    return m;
+  }
+
+  const SYNC_SETTINGS = ['dailyGoal', 'sessionLength', 'inputMode', 'tenses', 'autoUnlock', 'featuredList'];
+  const bumpSettings = () => { data.settingsT = Date.now(); };
+  const settingsState = () => ({ t: data.settingsT || 0, s: Object.fromEntries(SYNC_SETTINGS.map((k) => [k, data.settings[k]])) });
+  function applySettings(r) {
+    if (!r || !r.s || (r.t || 0) <= (data.settingsT || 0)) return false;
+    const def = defaultSettings();
+    for (const k of SYNC_SETTINGS) if (k in r.s && typeof r.s[k] === typeof def[k]) data.settings[k] = r.s[k];
+    data.settings.tenses = Object.assign(def.tenses, data.settings.tenses);
+    data.settingsT = r.t;
+    return true;
+  }
+
+  const verbsState = () => ({ verbs: data.customVerbs, tomb: data.verbMeta.tomb, hid: data.verbMeta.hid });
+  /** Fusionne l'état distant des verbes : pour chaque verbe, l'événement le plus récent gagne (ajout, modification ou suppression). */
+  function mergeVerbsState(r) {
+    r = r || {};
+    const L = verbsState();
+    const rv = (r.verbs || []).map((v) => sanitizeVerb(v)).filter(Boolean);
+    const out = { verbs: [], tomb: {}, hid: {} };
+    const infs = new Set([...L.verbs.map((v) => v.inf), ...rv.map((v) => v.inf), ...Object.keys(L.tomb), ...Object.keys(r.tomb || {})]);
+    for (const inf of infs) {
+      const ev = [];
+      const lv = L.verbs.find((v) => v.inf === inf), v2 = rv.find((v) => v.inf === inf);
+      if (lv) ev.push({ t: lv.updated || 0, v: lv });
+      if (v2) ev.push({ t: v2.updated || 0, v: v2 });
+      if (L.tomb[inf]) ev.push({ t: L.tomb[inf], v: null });
+      if ((r.tomb || {})[inf]) ev.push({ t: r.tomb[inf], v: null });
+      const best = ev.reduce((x, y) => (y.t > x.t || (y.t === x.t && y.v) ? y : x));
+      if (best.v) out.verbs.push(best.v); else out.tomb[inf] = best.t;
+    }
+    for (const inf of new Set([...Object.keys(L.hid), ...Object.keys(r.hid || {})])) {
+      const x = L.hid[inf], y = (r.hid || {})[inf];
+      out.hid[inf] = !x ? y : !y ? x : (y.t > x.t ? y : x);
+    }
+    const changed = stable(out) !== stable(L);
+    data.customVerbs = out.verbs; data.verbMeta = { tomb: out.tomb, hid: out.hid }; syncHidden();
+    return changed;
+  }
+
   load();
   return {
     get data() { return data; }, get memoryOnly() { return memoryOnly; },
     save, load, onChange: (f) => listeners.push(f), today, dayNum, addDays,
     sanitizeVerb, setBase, baseVerbs, allVerbs, saveVerb, removeVerb, restoreVerb, mergeVerbs, encodeShare, decodeShare,
     profile, addProfile, selectProfile, deleteProfile, newProfile,
+    stable, mergeProfile, settingsState, applySettings, bumpSettings, verbsState, mergeVerbsState,
     levelOf, xpFor, stageOf, STAGE_NAMES, key, card, review, isDue, mastery, touchDaily, bumpStreak, INTERVALS,
-    reset() { data = emptyData(); save(); },
+    reset() { data = emptyData(); save(true); },
     replaceAll(d) { data = Object.assign(emptyData(), d); data.settings = Object.assign(defaultSettings(), d.settings || {}); save(); },
   };
 });
