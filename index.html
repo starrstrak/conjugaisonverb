@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Conjugo – apprends les verbes en t'amusant</title>
+<meta name="description" content="Conjugo : l'appli ludique pour apprendre la conjugaison (7-10 ans). Fonctionne sans internet.">
+<meta name="theme-color" content="#6c4cf1">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Conjugo">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header id="top" hidden></header>
+<main id="app" tabindex="-1" aria-live="polite"><p class="loading">Chargement…</p></main>
+<nav id="nav" hidden aria-label="Navigation">
+  <button data-go="home"><span>🏠</span>Accueil</button>
+  <button data-go="adventure"><span>🗺️</span>Jouer</button>
+  <button data-go="memo"><span>📖</span>Mémo</button>
+  <button data-go="trophies"><span>🏆</span>Moi</button>
+</nav>
+<div id="modal" hidden></div>
+<div id="toasts" aria-live="polite"></div>
+<noscript><p style="padding:2rem">Cette appli a besoin de JavaScript pour fonctionner.</p></noscript>
+<script src="js/conjugate.js"></script>
+<script src="js/explain.js"></script>
+<script src="js/store.js"></script>
+<script src="js/fx.js"></script>
+<script src="js/app.js"></script>
+<script src="js/parent.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
