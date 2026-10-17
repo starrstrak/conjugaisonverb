@@ -23,7 +23,7 @@ assert.strictEqual(Store.data.seenVer, 0, 'les « Nouveautés » seront montrée
 // ---- trophées : identifiants uniques, anciens trophées toujours là ----
 const ids = Rewards.BADGES.map((b) => b.id);
 assert.strictEqual(new Set(ids).size, ids.length, 'identifiants de trophées uniques');
-assert(ids.length >= 150, 'plus de 150 trophées : ' + ids.length);
+assert(ids.length >= 190, 'plus de 150 trophées : ' + ids.length);
 const OLD = { first: 'Premier pas', combo5: 'En feu', combo10: 'Inarrêtable', perfect: 'Sans faute', perfect5: 'Perfectionniste', q100: 'Centurion', q500: 'Grand maître', streak3: 'Petite flamme', streak7: 'Semaine de feu',
   streak30: 'Légende', fixer: 'Chasseur d\'erreurs', explorer: 'Explorateur', verbs20: 'Collectionneur', chrono: 'Éclair', master: 'Maître d\'un temps', stars10: 'Chasseur d\'étoiles', lvl5: 'Dragonneau' };
 for (const [id, name] of Object.entries(OLD)) assert(Rewards.BADGE_BY_ID[id] && Rewards.BADGE_BY_ID[id].name === name, 'ancien trophée conservé : ' + id);
@@ -65,6 +65,23 @@ assert.deepStrictEqual(bad, [], bad.join('\n'));
 for (const old of ['hat:🎩', 'hat:🧢', 'hat:👑', 'hat:🎓', 'hat:🎀', 'hat:🤠', 'hat:🌸', 'glasses:🕶️', 'glasses:👓', 'glasses:🥽', 'theme:space', 'theme:ocean', 'theme:forest', 'theme:candy']) assert(Rewards.SHOP.some((i) => i.id === old), 'objet de boutique conservé : ' + old);
 assert([['hat:🎩', 30], ['hat:👑', 80], ['theme:space', 60]].every(([id, pr]) => Rewards.SHOP.find((i) => i.id === id).price === pr), 'prix inchangés');
 assert(Rewards.SHOP.length >= 80, 'boutique agrandie : ' + Rewards.SHOP.length);
+
+// ---- avatar : tout se gagne (niveau ou trophée) ; seuls les objets de départ sont libres ----
+const STARTER = { form: ['egg'], eyes: ['round', 'dots', 'happy', 'sleepy'], mouth: ['smile', 'open', 'flat', 'o'], pat: ['none'], fin: ['auto', 'matte'], pose: ['idle', 'wave', 'cheer', 'think', 'sleep'], scene: ['sky'] };
+const FREE_COLORS = ['#7bd88f', '#6ec6ff', '#ff9ecf', '#ffb35c', '#b79cff', '#ff7676', '#ffd93d', '#ffffff', '#4a4e69', '#2ec4b6', '#a0522d', '#f4a261'];
+const badLocks = [];
+for (const [slot, arr] of Object.entries(Parts.ITEMS)) for (const it of arr) {
+  const t = Rewards.parseLock(it.lock).t;
+  const free = t === 'free';
+  if (slot === 'eyeColor') continue;
+  const allowed = slot === 'color' ? FREE_COLORS.includes(it.id) : (STARTER[slot] || []).includes(it.id);
+  if (free !== allowed) badLocks.push(slot + ':' + it.id + ' (' + t + ')');
+  if (t === 'coins') badLocks.push('achat en pièces interdit : ' + slot + ':' + it.id);
+}
+assert.deepStrictEqual(badLocks, [], badLocks.join('\n'));
+assert(Parts.FORMS.length >= 39, 'avatars : ' + Parts.FORMS.length);
+// ce qu'un joueur avait déjà acheté reste utilisable
+assert(Rewards.usable({ owned: ['av:hat:crown'], badges: {} }, { level: 1 }, Parts.find('hat', 'crown').lock, 'av:hat:crown'));
 
 // ---- avatar : configuration toujours valide, même corrompue ----
 const junk = Parts.sanitize({ form: 'nimportequoi', hat: 'inconnu', eyes: 42, col: null, outfits: 'x', scene: 'xx' });

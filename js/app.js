@@ -665,6 +665,10 @@ function finishSession() {
     p.stats.bestStreak = Math.max(p.stats.bestStreak || 0, p.streak.count);
     if (now.getHours() < 8) p.stats.early = 1;
     if ([0, 6].includes(now.getDay())) p.stats.weekend = 1;
+    if (now.getDay() === 1) p.stats.monday = 1;
+    if (now.getDay() === 3) p.stats.wednesday = 1;
+    if (!cfg.timed && S.n >= 20) p.stats.long = 1;
+    if (!cfg.timed) { if ((p.stats.prevErr || 0) >= 3 && !S.mistakes.length) p.stats.rebound = 1; p.stats.prevErr = S.mistakes.length; }
   }
   if (!cfg.timed && S.n >= 10 && !S.hintsUsed) p.stats.noHint = 1;
   if (!cfg.timed && S.n >= 10 && S.first === S.n && Date.now() - S.startedAt < 90000) p.stats.fast = 1;

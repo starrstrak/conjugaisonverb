@@ -1,9 +1,9 @@
 /* Service worker : l'appli fonctionne hors-ligne. Change CACHE pour forcer une mise à jour. */
-const CACHE = 'conjugo-v5';
+const CACHE = 'conjugo-v6';
 const FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
   'js/conjugate.js', 'js/explain.js', 'js/store.js', 'js/fx.js', 'js/sync.js',
-  'js/avatar3d.js', 'js/avatar-parts.js', 'js/avatar-items.js', 'js/rewards.js', 'js/app.js', 'js/rewards-ui.js', 'js/parent.js', 'js/main.js',
+  'js/avatar3d.js', 'js/avatar-parts.js', 'js/avatar-unlocks.js', 'js/avatar-items.js', 'js/rewards.js', 'js/app.js', 'js/rewards-ui.js', 'js/parent.js', 'js/main.js',
   'data/verbs.json', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-180.png',
 ];
 self.addEventListener('install', (e) => {

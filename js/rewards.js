@@ -8,8 +8,8 @@
   else root.Rewards = factory(root.Conj, root.AvatarParts);
 })(typeof self !== 'undefined' ? self : this, function (Conj, Parts) {
   'use strict';
-  const APP_VERSION = '1.1.0';
-  const REWARDS_VERSION = 2;
+  const APP_VERSION = '1.2.0';
+  const REWARDS_VERSION = 3;
   const AVATAR_LEVEL = 3; // niveau à atteindre pour débloquer l'avatar 3D
   const TIER_COINS = [10, 20, 35, 60];
   const TIER_NAMES = ['Bronze', 'Argent', 'Or', 'Diamant'];
@@ -117,7 +117,7 @@
   ]);
   series('style', (p, x) => x.forms, [
     [3, 'forms3', 'Apprenti caméléon', '🦎', 'Débloque 3 transformations de l\'avatar'], [6, 'forms6', 'Métamorphe', '🦋', 'Débloque 6 transformations de l\'avatar'], [10, 'forms10', 'Maître des formes', '🎭', 'Débloque 10 transformations de l\'avatar'],
-    [15, 'forms15', 'Illusionniste', '🎩', 'Débloque 15 transformations de l\'avatar'], [25, 'forms25', 'Toutes les formes !', '🌟', 'Débloque toutes les transformations de l\'avatar'],
+    [15, 'forms15', 'Illusionniste', '🎩', 'Débloque 15 transformations de l\'avatar'], [25, 'forms25', 'Collectionneur de formes', '🌟', 'Débloque 25 transformations de l\'avatar'],
   ]);
   add({ id: 'av1', cat: 'style', name: 'Mon avatar !', emoji: '🧙', desc: 'Enregistre ton premier avatar 3D', goal: 1, val: S('avatarSaves'), tier: 1 });
   add({ id: 'photo', cat: 'style', name: 'Photographe', emoji: '📸', desc: 'Prends une photo de ton avatar', goal: 1, val: S('photos'), tier: 1 });
@@ -133,10 +133,37 @@
   add({ id: 'fast', cat: 'fun', name: 'Lièvre des verbes', emoji: '🐇', desc: 'Termine une partie parfaite en moins de 90 secondes', goal: 1, val: S('fast'), tier: 3, secret: true });
   add({ id: 'hints50', cat: 'fun', name: 'Bon élève', emoji: '🙋', desc: 'Utilise 50 fois un indice : demander de l\'aide, c\'est malin !', goal: 50, val: S('hints'), tier: 1, secret: true });
 
+
+  // ----- version 3 : trophées de très haut niveau, pour les joueurs les plus assidus (palier diamant) -----
+  const hi = { tier: 4 };
+  series('play', S('sessions'), [[1000, 'play1000', 'Mille parties', '🏆', 'Termine 1 000 parties']], hi);
+  series('acc', S('correct'), [[25000, 'q25000', 'Maître des mots', '🧙', '25 000 bonnes réponses']], hi);
+  series('combo', S('bestCombo'), [[75, 'combo75', 'Phénomène', '🌠', '75 bonnes réponses d\'affilée'], [100, 'combo100', 'Série légendaire', '🐉', '100 bonnes réponses d\'affilée']], hi);
+  series('perfect', S('perfect'), [[100, 'perfect100', 'Cent sans faute', '👑', '100 parties parfaites']], hi);
+  series('streak', bestStreak, [[150, 'streak150', 'Flamme éternelle', '🔥', '150 jours d\'affilée'], [200, 'streak200', 'Phénix', '🦅', '200 jours d\'affilée'], [365, 'streak365', 'Une année entière', '🎆', '365 jours d\'affilée']], hi);
+  series('streak', days, [[300, 'days300', 'Compagnon de route', '🧭', 'Joue pendant 300 jours différents'], [365, 'days365', 'Un an de jeu', '🎂', 'Joue pendant 365 jours différents']], hi);
+  series('lvl', (p, x) => x.level, [[60, 'lvl60', 'Archimage', '🔮', 'Atteins le niveau 60'], [75, 'lvl75', 'Titan', '🗿', 'Atteins le niveau 75'], [100, 'lvl100', 'Dragon éternel', '🐲', 'Atteins le niveau 100']], hi);
+  series('chrono', S('chronoBest'), [[50, 'chrono50', 'Supersonique', '🛰️', '50 bonnes réponses au défi chrono'], [60, 'chrono60', 'Temps arrêté', '⏸️', '60 bonnes réponses au défi chrono']], hi);
+  series('chrono', S('chronos'), [[50, 'chronos50', 'Pilote de course', '🏎️', 'Joue 50 défis chrono'], [100, 'chronos100', 'Légende du chrono', '🏆', 'Joue 100 défis chrono']], { tier: 3 });
+  series('fix', S('fixed'), [[500, 'fix500', 'Gardien de la grammaire', '🏛️', 'Corrige 500 erreurs']], hi);
+  series('master', (p, x) => x.mastered, [[200, 'master200', 'Bibliothèque vivante', '📜', 'Maîtrise 200 verbes à un temps entier']], hi);
+  series('style', S('photos'), [[5, 'photo5', 'Reporter', '📷', 'Prends 5 photos de ton avatar'], [25, 'photo25', 'Studio photo', '🎞️', 'Prends 25 photos de ton avatar']], { tier: 2 });
+  series('style', S('boops'), [[100, 'boop100', 'Roi des câlins', '🤗', 'Touche ton avatar 100 fois'], [250, 'boop250', 'Meilleur ami', '💞', 'Touche ton avatar 250 fois']], { tier: 3 });
+  series('style', (p, x) => x.forms, [[30, 'forms30', 'Grand transformiste', '🎭', 'Débloque 30 transformations de l\'avatar'], [Parts.FORMS.length, 'formsAll', 'Toutes les formes !', '🌈', 'Débloque toutes les transformations de l\'avatar']], hi);
+  series('style', (p, x) => x.owned, [[150, 'own150', 'Dressing infini', '🧳', 'Possède 150 objets de la boutique']], hi);
+  // tous les temps : un trophée « maître » par temps (300 bonnes réponses)
+  TENSES.forEach((t) => add({ id: `t:${t.id}:300`, cat: 'tense', name: `${t.name} – maître`, emoji: t.emoji, desc: `300 bonnes réponses : ${t.name.toLowerCase()}`, goal: 300, val: (p, x) => x.byTense[t.id] || 0, tier: 4, secret: false, meta: false }));
+  FAMILIES.forEach(([id, name, emoji]) => add({ id: `f:${id}:600`, cat: 'family', name: `${name} – légende`, emoji, desc: `600 bonnes réponses sur « ${name.toLowerCase()} »`, goal: 600, val: (p, x) => x.byType[id] || 0, tier: 4, secret: false, meta: false }));
+  // petites surprises supplémentaires
+  add({ id: 'monday', cat: 'fun', name: 'Lundi motivé', emoji: '💪', desc: 'Joue un lundi', goal: 1, val: S('monday'), tier: 1, secret: true });
+  add({ id: 'wednesday', cat: 'fun', name: 'Mercredi malin', emoji: '🎈', desc: 'Joue un mercredi', goal: 1, val: S('wednesday'), tier: 1, secret: true });
+  add({ id: 'long', cat: 'fun', name: 'Longue séance', emoji: '⏳', desc: 'Joue une partie de 20 questions ou plus', goal: 1, val: S('long'), tier: 2, secret: true });
+  add({ id: 'rebound', cat: 'fun', name: 'Rebond', emoji: '🏀', desc: 'Réussis une partie après avoir fait au moins 3 erreurs dans la précédente', goal: 1, val: S('rebound'), tier: 2, secret: true });
+
   // trophées « collection » : comptent les autres trophées
   series('meta', (p, x) => x.badgeCount, [
     [10, 'trophies10', 'Premières coupes', '🥉', 'Gagne 10 trophées'], [25, 'trophies25', 'Vitrine garnie', '🥈', 'Gagne 25 trophées'], [50, 'trophies50', 'Chasseur de trophées', '🥇', 'Gagne 50 trophées'],
-    [100, 'trophies100', 'Musée des trophées', '💎', 'Gagne 100 trophées'], [150, 'trophies150', 'Légende des trophées', '🌈', 'Gagne 150 trophées'],
+    [100, 'trophies100', 'Musée des trophées', '💎', 'Gagne 100 trophées'], [150, 'trophies150', 'Légende des trophées', '🌈', 'Gagne 150 trophées'], [200, 'trophies200', 'Panthéon des trophées', '🏛️', 'Gagne 200 trophées'],
   ], { meta: true });
 
   const BADGE_BY_ID = Object.fromEntries(BADGES.map((b) => [b.id, b]));
@@ -268,6 +295,11 @@
 
   /* ---------- nouveautés affichées une fois après la mise à jour ---------- */
   const NEWS = [
+    { v: 3, title: 'Nouveaux avatars et trophées !', lines: [
+      '🐲 14 nouveaux avatars à débloquer : renard, panda, pingouin, lion, vampire, chevalier, golem, dragon éclair…',
+      '🏆 Plus de 30 nouveaux trophées, du plus facile au plus légendaire.',
+      '🔓 Les avatars et accessoires 3D se débloquent maintenant en gagnant des niveaux et des trophées. Ce que tu as déjà acheté est conservé.',
+    ] },
     { v: 2, title: 'Gros pack de récompenses !', lines: [
       '🏆 Plus de 150 trophées à gagner (par temps, par famille de verbes, séries, régularité, surprises…).',
       '🎒 Boutique agrandie : chapeaux, lunettes, colliers, compagnons et décors en plus.',
