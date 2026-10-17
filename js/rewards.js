@@ -8,7 +8,7 @@
   else root.Rewards = factory(root.Conj, root.AvatarParts);
 })(typeof self !== 'undefined' ? self : this, function (Conj, Parts) {
   'use strict';
-  const APP_VERSION = '1.3.0';
+  const APP_VERSION = '1.4.0';
   const REWARDS_VERSION = 4;
   const AVATAR_LEVEL = 3; // niveau à atteindre pour débloquer l'avatar 3D
   const TIER_COINS = [10, 20, 35, 60];

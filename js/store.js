@@ -13,11 +13,38 @@
   const today = () => dateStr();
   const addDays = (s, n) => { const [y, m, d] = s.split('-').map(Number); return dateStr(new Date(y, m - 1, d + n)); };
 
+  /** Réglages des exercices (espace parents ➜ Exercices). Les valeurs par défaut reproduisent le comportement d'origine. */
+  const defaultEx = () => ({
+    types: { choice: true, type: true, pronoun: true, tense: true }, // types de questions autorisés
+    recog: 14,                                                        // % de questions « quel pronom ? » / « quel temps ? »
+    persons: { 0: true, 1: true, 2: true, 3: true, 4: true, 5: true }, // je, tu, il/elle, nous, vous, ils/elles
+    families: { aux: true, er: true, ir2: true, re: true, irr: true }, // familles de verbes
+    modes: { review: true, adventure: true, chrono: true, practice: true, errors: true }, // jeux visibles sur l'accueil
+    hints: true, hintMax: 3, retry: true, chronoSecs: 60,
+  });
   const defaultSettings = () => ({
     sound: true, speech: true, easyFont: false, dailyGoal: 20, inputMode: 'auto',
     tenses: Object.fromEntries(Conj.TENSES.map((t) => [t.id, t.core])),
-    unlockAll: false, autoUnlock: true, sessionLength: 10, featuredList: '',
+    unlockAll: false, autoUnlock: true, sessionLength: 10, featuredList: '', ex: defaultEx(),
   });
+  /** Réglages d'exercices complets et valides (les clés manquantes reprennent la valeur par défaut). */
+  function exOf() {
+    const d = defaultEx(), s = (data.settings && data.settings.ex) || {};
+    for (const k of Object.keys(d)) {
+      if (d[k] && typeof d[k] === 'object') { for (const j of Object.keys(d[k])) if (s[k] && typeof s[k][j] === 'boolean') d[k][j] = s[k][j]; }
+      else if (k in s && typeof s[k] === typeof d[k]) d[k] = s[k];
+    }
+    d.recog = Math.max(0, Math.min(60, d.recog)); d.hintMax = Math.max(1, Math.min(3, d.hintMax)); d.chronoSecs = Math.max(20, Math.min(300, d.chronoSecs));
+    return d;
+  }
+  /** Message d'erreur si la combinaison est impossible (rien à jouer), sinon ''. */
+  function exProblem(e) {
+    if (!e.types.choice && !e.types.type) return 'Garde au moins un type de réponse : choisir ou écrire.';
+    if (!Object.values(e.persons).some(Boolean)) return 'Garde au moins un pronom.';
+    if (!Object.values(e.families).some(Boolean)) return 'Garde au moins une famille de verbes.';
+    if (!(e.modes.review || e.modes.adventure || e.modes.chrono || e.modes.practice)) return 'Garde au moins un jeu sur l\'accueil.';
+    return '';
+  }
   const newProfile = (name, color) => ({
     id: 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
     name: String(name).slice(0, 20), color: color || '#7bd88f',
@@ -262,7 +289,7 @@
     return m;
   }
 
-  const SYNC_SETTINGS = ['dailyGoal', 'sessionLength', 'inputMode', 'tenses', 'autoUnlock', 'featuredList'];
+  const SYNC_SETTINGS = ['dailyGoal', 'sessionLength', 'inputMode', 'tenses', 'autoUnlock', 'featuredList', 'ex'];
   const bumpSettings = () => { data.settingsT = Date.now(); };
   const settingsState = () => ({ t: data.settingsT || 0, s: Object.fromEntries(SYNC_SETTINGS.map((k) => [k, data.settings[k]])) });
   function applySettings(r) {
@@ -308,7 +335,7 @@
     sanitizeVerb, setBase, baseVerbs, allVerbs, saveVerb, removeVerb, restoreVerb, mergeVerbs, encodeShare, decodeShare,
     profile, addProfile, selectProfile, deleteProfile, newProfile,
     stable, mergeProfile, settingsState, applySettings, bumpSettings, verbsState, mergeVerbsState,
-    levelOf, xpFor, stageOf, STAGE_NAMES, key, card, review, isDue, mastery, touchDaily, bumpStreak, INTERVALS,
+    exOf, exProblem, defaultEx, levelOf, xpFor, stageOf, STAGE_NAMES, key, card, review, isDue, mastery, touchDaily, bumpStreak, INTERVALS,
     reset() { data = emptyData(); save(true); },
     replaceAll(d) { data = Object.assign(emptyData(), d); data.settings = Object.assign(defaultSettings(), d.settings || {}); save(); },
   };

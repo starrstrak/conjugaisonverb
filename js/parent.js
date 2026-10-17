@@ -6,7 +6,7 @@ const Parent = (() => {
     infinitive: 'infinitif écrit', empty: 'réponse vide', other: 'verbe irrégulier / autre', pronoun: 'reconnaître le pronom',
   };
   const tab = () => A.params.tab || 'verbs';
-  const NAMES = { verbs: '📚 Verbes', progress: '📈 Progrès', settings: '⚙️ Réglages', share: '🔗 Partager' };
+  const NAMES = { verbs: '📚 Verbes', progress: '📈 Progrès', exercises: '🎯 Exercices', settings: '⚙️ Réglages', share: '🔗 Partager' };
 
   function gate() {
     const a = 13 + rnd(7), b = 3 + rnd(5);
@@ -23,7 +23,7 @@ const Parent = (() => {
 
   views.parent = (params) => {
     const t = params.tab || 'verbs';
-    const body = { verbs: verbsTab, progress: progressTab, settings: settingsTab, share: shareTab }[t]();
+    const body = { verbs: verbsTab, progress: progressTab, exercises: exercisesTab, settings: settingsTab, share: shareTab }[t]();
     setView(`<button class="back" data-go="home">← Retour au jeu</button><h2 class="title">Espace parents &amp; enseignants</h2>
       <div class="tabs ptabs">${Object.entries(NAMES).map(([k, n]) => `<button class="${k === t ? 'on' : ''}" data-act="ptab" data-t="${k}">${n}</button>`).join('')}</div>${body}`);
     if (t === 'share') showPersist();
@@ -211,6 +211,36 @@ const Parent = (() => {
     <button class="small danger" data-act="pdel-profile" data-id="${esc(p.id)}">Supprimer le joueur</button>`;
   }
 
+  /* ---------- Exercices : choisir et moduler tout ce qui est joué ---------- */
+  function exercisesTab() {
+    const e = Store.exOf();
+    const chk = (path, label, on, hint) => `<label class="chk"><input type="checkbox" data-ex="${path}" ${on ? 'checked' : ''}> <span>${label}${hint ? `<br><small class="muted">${hint}</small>` : ''}</span></label>`;
+    const sel = (path, label, opts, cur) => `<label>${label}<select data-ex="${path}">${opts.map(([v, n]) => `<option value="${v}" ${v === cur ? 'selected' : ''}>${n}</option>`).join('')}</select></label>`;
+    const PR = ['je', 'tu', 'il / elle', 'nous', 'vous', 'ils / elles'];
+    return `<p class="muted">Choisis ce que l'enfant va travailler. Tout est modifiable ; les changements s'appliquent à la prochaine partie.</p>
+    <section class="card form"><h3>🧩 Types de questions</h3>
+      ${chk('types.choice', '🔘 Choisir parmi 4 réponses', e.types.choice, 'Plus facile.')}
+      ${chk('types.type', '⌨️ Écrire la réponse', e.types.type, 'Plus difficile. Si seul ce type est coché, tout est à écrire.')}
+      ${chk('types.pronoun', '👤 « Quel pronom ? »', e.types.pronoun, 'Reconnaître la personne à partir du verbe conjugué.')}
+      ${chk('types.tense', '⏳ « Quel temps ? »', e.types.tense, 'Reconnaître le temps à partir du verbe conjugué.')}
+      ${sel('recog', 'Fréquence de ces questions de reconnaissance', [[0, 'Jamais'], [7, 'Rare'], [14, 'Normale'], [25, 'Fréquente'], [40, 'Très fréquente']], e.recog)}
+    </section>
+    <section class="card form"><h3>👥 Pronoms travaillés</h3><div class="tenselist">${PR.map((n, i) => chk('persons.' + i, n, e.persons[i])).join('')}</div></section>
+    <section class="card form"><h3>📚 Familles de verbes</h3><div class="tenselist">${[['aux', 'Être et avoir'], ['er', 'Verbes en -er'], ['ir2', 'Verbes en -ir (finir)'], ['re', 'Verbes en -re'], ['irr', 'Verbes rebelles']].map(([k, n]) => chk('families.' + k, n, e.families[k])).join('')}</div>
+      <p class="muted">Les temps (présent, futur…) se choisissent dans <b>Réglages</b> ; la longueur des parties aussi.</p></section>
+    <section class="card form"><h3>🏠 Jeux affichés sur l'accueil</h3>
+      ${chk('modes.review', '▶ Jouer (révision du jour)', e.modes.review)}${chk('modes.adventure', '🗺️ Aventure (mondes et missions)', e.modes.adventure)}${chk('modes.chrono', '⏱️ Défi chrono', e.modes.chrono)}
+      ${chk('modes.practice', '🎯 Je choisis (entraînement libre)', e.modes.practice)}${chk('modes.errors', '🩹 Mes erreurs', e.modes.errors)}
+    </section>
+    <section class="card form"><h3>🛟 Aides et rythme</h3>
+      ${chk('hints', '💡 Autoriser les indices', e.hints)}
+      ${sel('hintMax', 'Nombre d\'indices par question', [[1, '1 indice'], [2, '2 indices'], [3, '3 indices (méthode, coup de pouce, réponse à trous)']], e.hintMax)}
+      ${chk('retry', '🔁 Reposer la question ratée 2 questions plus tard', e.retry)}
+      ${sel('chronoSecs', 'Durée du défi chrono', [[30, '30 secondes'], [60, '60 secondes'], [90, '90 secondes'], [120, '2 minutes'], [180, '3 minutes']], e.chronoSecs)}
+    </section>
+    <button class="big" data-act="ex-reset">↺ Rétablir les valeurs par défaut</button>`;
+  }
+
   /* ---------- Réglages ---------- */
   function settingsTab() {
     const s = settings();
@@ -326,6 +356,7 @@ const Parent = (() => {
     's-native': () => navigator.share({ title: 'Verbes pour Conjugo', text: 'Voici des verbes à ajouter dans l\'appli de conjugaison :', url: $('#shareurl').value }).catch(() => {}),
     's-export': () => download('verbes-conjugo.json', { v: 1, by: Store.data.author || '', verbs: A.verbs.filter((v) => v._custom || v._mod).map(({ _custom, _mod, ...v }) => v) }),
     's-import': () => pickFile((o) => confirmImport(Array.isArray(o) ? o : o.verbs || [], o.by || '')),
+    'ex-reset': () => { Store.data.settings.ex = Store.defaultEx(); Store.bumpSettings(); Store.save(); toast('Exercices : valeurs par défaut rétablies'); render(); },
     's-update': async () => {
       try {
         const r = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
@@ -353,7 +384,14 @@ const Parent = (() => {
   document.addEventListener('change', (e) => {
     const t = e.target;
     if (!t.closest('#app')) return;
-    if (t.dataset.pname) {
+    if (t.dataset.ex) {
+      const e = Store.exOf(), path = t.dataset.ex.split('.');
+      const val = t.type === 'checkbox' ? t.checked : (t.tagName === 'SELECT' ? +t.value : t.value);
+      if (path.length === 2) e[path[0]][path[1]] = val; else e[path[0]] = val;
+      const bad = Store.exProblem(e);
+      if (bad) { toast(bad); render(); return; }
+      Store.data.settings.ex = e; Store.bumpSettings(); Store.save();
+    } else if (t.dataset.pname) {
       const pl = Store.data.profiles.find((x) => x.id === t.dataset.pname), name = t.value.trim().slice(0, 20);
       if (!pl) return;
       if (!name) { t.value = pl.name; toast('Le prénom ne peut pas être vide'); return; }

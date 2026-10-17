@@ -13,6 +13,10 @@ const plainText = (s) => String(s).replace(/\(e\)|\(s\)/g, '');
 const A = { verbs: [], view: 'home', params: {}, S: null, cache: new Map(), gateUntil: 0 };
 
 const settings = () => Store.data.settings;
+const EX = () => Store.exOf();
+const familyOf = (v) => (v.inf === 'être' || v.inf === 'avoir' ? 'aux' : v.type);
+/** Ne garde que les questions autorisées par les réglages d'exercices (pronoms, familles de verbes). */
+const exFilter = (pool) => { const e = EX(); return pool.filter((it) => e.persons[it.p] !== false && e.families[familyOf(it.v)] !== false); };
 const prof = () => Store.profile();
 
 /* ---------- verbes & conjugaisons ---------- */
@@ -82,7 +86,7 @@ function render() {
   $('#top').hidden = inGame || !p || A.view === 'welcome';
   if (!p && A.view !== 'welcome') { A.view = 'welcome'; }
   if (A.view !== 'welcome' && p) renderTop(p);
-  $$('#nav button').forEach((b) => b.classList.toggle('on', b.dataset.go === navOf(A.view)));
+  $$('#nav button').forEach((b) => { b.classList.toggle('on', b.dataset.go === navOf(A.view)); if (b.dataset.go === 'adventure') b.hidden = !EX().modes.adventure; });
   (views[A.view] || views.home)(A.params);
 }
 const navOf = (v) => ({ home: 'home', adventure: 'adventure', world: 'adventure', setup: 'adventure', memo: 'memo', trophies: 'trophies', shop: 'trophies', avatar: 'trophies' }[v] || '');
@@ -172,13 +176,13 @@ views.home = () => {
     <div><b>Objectif du jour</b><br><small>${d.chest ? '🎁 Coffre ouvert, bravo !' : `Réponds à ${goal} questions pour ouvrir le coffre 🎁`}</small></div>
   </section>
   ${(() => { const r = readResume(); return r ? `<button class="card featured resume" data-act="resume-game">⏯️ <b>Reprendre ta partie</b><small>${r.asked}/${r.n} questions déjà faites</small></button>` : ''; })()}
-  <button class="big primary play" data-act="review">▶ Jouer<small>${due ? `${due} à revoir aujourd'hui` : 'Révision du jour'}</small></button>
+  ${EX().modes.review ? `<button class="big primary play" data-act="review">▶ Jouer<small>${due ? `${due} à revoir aujourd'hui` : 'Révision du jour'}</small></button>` : ''}
   ${featVerbs.length ? `<button class="card featured" data-act="featured">📚 <b>${esc(feat)}</b><small>${featVerbs.length} verbes choisis pour toi</small></button>` : ''}
   <section class="tiles">
-    <button class="tile t-adv" data-go="adventure"><span>🗺️</span>Aventure</button>
-    <button class="tile t-chrono" data-act="setup-chrono"><span>⏱️</span>Défi chrono</button>
-    <button class="tile t-free" data-act="setup-practice"><span>🎯</span>Je choisis</button>
-    <button class="tile t-err" data-act="errors" ${errs ? '' : 'data-empty="1"'}><span>🩹</span>Mes erreurs${errs ? `<em>${errs}</em>` : ''}</button>
+    ${EX().modes.adventure ? '<button class="tile t-adv" data-go="adventure"><span>🗺️</span>Aventure</button>' : ''}
+    ${EX().modes.chrono ? '<button class="tile t-chrono" data-act="setup-chrono"><span>⏱️</span>Défi chrono</button>' : ''}
+    ${EX().modes.practice ? '<button class="tile t-free" data-act="setup-practice"><span>🎯</span>Je choisis</button>' : ''}
+    ${EX().modes.errors ? `<button class="tile t-err" data-act="errors" ${errs ? '' : 'data-empty="1"'}><span>🩹</span>Mes erreurs${errs ? `<em>${errs}</em>` : ''}</button>` : ''}
     <button class="tile t-memo" data-go="memo"><span>📖</span>Mémo</button>
     <button class="tile t-trophy" data-go="trophies"><span>🏆</span>Trophées</button>
     <button class="tile t-shop" data-go="shop"><span>🎒</span>Boutique</button>
@@ -237,7 +241,7 @@ views.setup = ({ mode }) => {
   const fl = sel.filter.toLowerCase();
   setView(`<button class="back" data-go="home">← Accueil</button>
   <h2 class="title">${chrono ? '⏱️ Défi chrono' : '🎯 Je choisis'}</h2>
-  ${chrono ? `<p class="lead">60 secondes : réponds à un maximum de questions ! Meilleur score : <b>${p.stats.chronoBest}</b></p>` : ''}
+  ${chrono ? `<p class="lead">${EX().chronoSecs} secondes : réponds à un maximum de questions ! Meilleur score : <b>${p.stats.chronoBest}</b></p>` : ''}
   <h3>Quels temps ?</h3>
   <div class="chips">${avail.map((t) => `<button class="pill ${sel.tenses.includes(t.id) ? 'on' : ''}" style="--c:${t.color}" data-act="tog-tense" data-t="${t.id}">${t.emoji} ${esc(t.name)}</button>`).join('')}</div>
   <h3>Quels verbes ? <small>(${[...sel.verbs].filter((i) => verbs.some((v) => v.inf === i)).length}/${verbs.length})</small></h3>
@@ -354,11 +358,14 @@ function resumeSession() {
 
 function startSession(cfg) {
   const p = prof();
-  const pool = cfg.pool || buildPool(cfg.tenses, cfg.verbs);
-  if (!pool.length) { toast('Pas assez de verbes pour jouer 😕'); return; }
+  const raw = cfg.pool || buildPool(cfg.tenses, cfg.verbs);
+  if (!raw.length) { toast('Pas assez de verbes pour jouer 😕'); return; }
+  const pool = exFilter(raw);
+  if (!pool.length) { toast('Les réglages « Exercices » (pronoms, familles de verbes) ne laissent aucune question ici. À modifier dans l\'espace parents 🔒'); return; }
+  const ex = EX();
   const n = cfg.n || (Store.data.settings.sessionLength || 10);
   A.S = { cfg, pool, n, asked: 0, answered: 0, first: 0, combo: 0, maxCombo: 0, xp: 0, coins: 0, mistakes: [], retry: [], lastKey: '', recent: [],
-    timeLeft: cfg.timed ? 60 : null, paused: false, q: null, lvl0: Store.levelOf(p.xp), levelUps: [], startedAt: Date.now() };
+    secs: cfg.timed ? ex.chronoSecs : null, timeLeft: cfg.timed ? ex.chronoSecs : null, paused: false, q: null, lvl0: Store.levelOf(p.xp), levelUps: [], startedAt: Date.now() };
   if (cfg.restore) {
     const r = cfg.restore;
     Object.assign(A.S, { asked: r.asked, first: r.first, combo: r.combo, maxCombo: r.maxCombo, xp: r.xp, coins: r.coins, answered: r.answered, lvl0: r.lvl0, startedAt: r.startedAt });
@@ -404,14 +411,15 @@ function buildQuestion(item, isRetry) {
   const p = prof(), S = A.S;
   const c = p.cards[item.k], b = c ? c.b : 0;
   const f = forms(item.v), cell = f[item.t][item.p];
-  const mode = settings().inputMode;
-  let type = S.cfg.timed ? 'choice' : mode === 'choice' ? 'choice' : mode === 'type' ? 'type' : b >= 2 ? 'type' : 'choice';
+  const ex = EX();
+  const mode = !ex.types.type ? 'choice' : !ex.types.choice ? 'type' : settings().inputMode; // un seul type autorisé : il s'impose
+  let type = S.cfg.timed ? (ex.types.choice ? 'choice' : 'type') : mode === 'choice' ? 'choice' : mode === 'type' ? 'type' : b >= 2 ? 'type' : 'choice';
   const q = { item, v: item.v, t: item.t, p: item.p, k: item.k, cell, type, retry: isRetry, marker: markerFor(item.t), t0: Date.now() };
   const full = personsOf(item.t).length === 6;
-  if (!isRetry && b >= 1 && full && Math.random() < 0.14) {
+  if (!isRetry && b >= 1 && full && ex.types.pronoun && Math.random() < ex.recog / 100) {
     const r = recogPronoun(q); if (r) return r;
   }
-  if (!isRetry && b >= 1 && Math.random() < 0.14) {
+  if (!isRetry && b >= 1 && ex.types.tense && Math.random() < ex.recog / 100) {
     const r = recogTense(q); if (r) return r;
   }
   if (q.type === 'choice') q.options = makeChoices(q);
@@ -499,7 +507,7 @@ const ACCENTS = ['é', 'è', 'ê', 'à', 'â', 'ç', 'î', 'ï', 'ô', 'û', 'ù
 function renderQuestion() {
   const S = A.S, q = S.q, T = TENSE_BY_ID[q.t], p = prof();
   const total = S.cfg.timed ? '∞' : S.n;
-  const pct = S.cfg.timed ? (S.timeLeft / 60) * 100 : Math.min(100, (S.asked - (q.retry ? 0 : 1) + 0) / S.n * 100);
+  const pct = S.cfg.timed ? (S.timeLeft / S.secs) * 100 : Math.min(100, (S.asked - (q.retry ? 0 : 1) + 0) / S.n * 100);
   let main = '', prompt = '';
   if (q.type === 'pronoun') {
     prompt = `<div class="prompt">Qui peut faire cette action ?</div><div class="sentence"><span class="chip-t" style="--c:${T.color}">${T.emoji} ${esc(T.name)}</span> … <b class="shown">${esc(q.shown)}</b> <small class="inf">(${esc(q.v.inf)})</small></div>`;
@@ -527,7 +535,7 @@ function renderQuestion() {
       <div class="vcard"><span class="big-e">${esc(q.v.emoji || '📘')}</span><b>${esc(q.v.inf)}</b>
         <button class="small" data-act="say" data-text="${esc(q.v.inf)}" aria-label="Écouter le verbe">🔊</button></div>
       ${prompt}
-      <div id="answer">${main}${q.type === 'type' || q.type === 'choice' ? '<div class="center"><button class="small" data-act="hint">💡 Un indice</button></div><div id="hint" aria-live="polite"></div>' : ''}</div>
+      <div id="answer">${main}${(q.type === 'type' || q.type === 'choice') && EX().hints ? '<div class="center"><button class="small" data-act="hint">💡 Un indice</button></div><div id="hint" aria-live="polite"></div>' : ''}</div>
       <div id="fb"></div>
     </div></div>`);
   const inp = $('#inp');
@@ -585,7 +593,7 @@ function resolve(ok, given, verdict) {
   }
   // erreur
   p.stats.wrong++;
-  if (!q.retry) { S.combo = 0; S.retry.push({ item: q.item, at: S.asked }); }
+  if (!q.retry) { S.combo = 0; if (EX().retry) S.retry.push({ item: q.item, at: S.asked }); }
   updCombo();
   let info;
   if (q.type === 'pronoun') {
@@ -639,8 +647,9 @@ function finishSession() {
   const mainTotal = cfg.timed ? answered : S.n;
   let stars = 0, newStars = 0;
   if (cfg.timed) {
-    stars = S.first >= 20 ? 3 : S.first >= 12 ? 2 : S.first >= 6 ? 1 : 0;
-    if (S.first > p.stats.chronoBest) { p.stats.chronoBest = S.first; S.newRecord = true; }
+    const score = Math.round((S.first * 60) / (S.secs || 60)); // score ramené à 60 s, quelle que soit la durée choisie
+    stars = score >= 20 ? 3 : score >= 12 ? 2 : score >= 6 ? 1 : 0;
+    if (score > p.stats.chronoBest) { p.stats.chronoBest = score; S.newRecord = true; }
   } else {
     const r = S.first / Math.max(1, mainTotal);
     stars = r >= 1 ? 3 : r >= 0.9 ? 2 : r >= 0.7 ? 1 : 0;
@@ -768,7 +777,8 @@ const actions = {
   'memo-tense': (el) => go('memo', { inf: 'manger', t: el.dataset.t }),
   hint: () => {
     const S = A.S, q = S && S.q; if (!q || q.done) return;
-    const max = q.type === 'type' ? 3 : 2;
+    if (!EX().hints) return;
+    const max = Math.min(q.type === 'type' ? 3 : 2, EX().hintMax);
     if ((q.hintLevel || 0) >= max) return;
     q.hintLevel = (q.hintLevel || 0) + 1; q.hint = true;
     if (q.hintLevel === 1) { const pr = prof(); pr.stats.hints = (pr.stats.hints || 0) + 1; if (A.S) A.S.hintsUsed = (A.S.hintsUsed || 0) + 1; }
