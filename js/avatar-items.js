@@ -2,9 +2,9 @@
    Ajouter un accessoire = ajouter une ligne `it('slot', 'id', 'Nom', '🎩', prix|'lN'|'b:trophée', (c, g, P) => { … })`.
    (c = pinceau 3D, g = géométrie du corps, P = couleurs). Voir avatar-parts.js pour les règles de déblocage. */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./avatar-parts.js'));
-  else root.AvatarItems = factory(root.AvatarParts);
-})(typeof self !== 'undefined' ? self : this, function (Parts) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./avatar-parts.js'), require('./avatar-unlocks.js'));
+  else root.AvatarItems = factory(root.AvatarParts, root.AvatarUnlocks);
+})(typeof self !== 'undefined' ? self : this, function (Parts, Unlocks) {
   'use strict';
   const PI = Math.PI, { surf, topAt, lighter, darker } = Parts;
   const it = (slot, id, name, emoji, lock, b, o) => Parts.ITEMS[slot].push(Object.assign({ id, name, emoji, lock, b }, o));
@@ -163,6 +163,13 @@
   it('aura', 'feathers', 'Plumes', '🕊️', 30, (c, g) => sparks(c, 7, (c, k, ph, an, col, s) => c.E(0, 0, 0, s * 1.8, s * 0.35, s * 0.2, col, { m: 'soft', an: (t, p) => { const a = an(t, p); return [a[0], 1.9 - ((t * 0.35 + p) % 2.2), a[2]]; }, ph, rot: [0, ph, 0.6] }), ['#ffffff', '#e0e7ff'], 1.6, 0.0, 0.4, 0.1));
   it('aura', 'shield', 'Bulle protectrice', '🔮', 'l14', (c, g) => c.E(0, g.by, 0, g.rx + 0.5, g.ry + 0.45, g.rz + 0.5, '#bfefff', { m: 'glass' }));
   it('aura', 'crown', 'Constellation', '🌌', 'l19', (c, g) => sparks(c, 12, (c, k, ph, an, col, s) => c.S(0, 0, 0, s, 0.03, col, { pts: 4, m: 'glow', an, ph }), ['#ffffff', '#ffe66d', '#a5b4fc'], 1.9, 0.2, 0.6, 0.1));
+
+  // règles de déblocage (niveau / trophée) : voir avatar-unlocks.js
+  for (const [key, lock] of Object.entries(Unlocks)) {
+    const [slot, ...rest] = key.split(':'), id = rest.join(':');
+    const item = (Parts.ITEMS[slot] || []).find((x) => x.id === id);
+    if (item) item.lock = lock;
+  }
 
   return { count: () => Object.keys(Parts.ITEMS).reduce((n, k) => n + Parts.ITEMS[k].length, 0) };
 });

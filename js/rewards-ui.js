@@ -320,7 +320,7 @@ const RUI = (() => {
     d.seenVer = Rewards.REWARDS_VERSION; Store.save(true);
     if (cur) renderTop(cur);
     if (!cur || A.view === 'game') return;
-    const news = Rewards.NEWS.filter((n) => n.v > 0 && n.v <= Rewards.REWARDS_VERSION).slice(-1)[0];
+    const news = Rewards.NEWS.filter((n) => n.v <= Rewards.REWARDS_VERSION).sort((a, b) => a.v - b.v).slice(-1)[0];
     const gift = mine && mine.list.length ? `<p class="reward">🎉 Tu avais déjà mérité <b>${mine.list.length} nouveau${mine.list.length > 1 ? 'x' : ''} trophée${mine.list.length > 1 ? 's' : ''}</b> : ${mine.list.slice(0, 12).map((b) => b.emoji).join(' ')}${mine.list.length > 12 ? ' …' : ''}<br>+${mine.coins} 🪙 offerts !</p>` : '';
     modal(`<h2>✨ Nouveautés !</h2><h3>${esc(news.title)}</h3>${news.lines.map((l) => `<p>${esc(l)}</p>`).join('')}${gift}
       <div class="actions"><button class="big" data-act="news-close">Super !</button><button class="big primary" data-act="news-trophies">🏆 Voir mes trophées</button></div>`);

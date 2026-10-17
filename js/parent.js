@@ -226,7 +226,7 @@ const Parent = (() => {
     </section>
     <h3>Temps de conjugaison disponibles</h3>
     <div class="tenselist">${TENSES.map((T) => `<label class="chk"><input type="checkbox" data-tense="${T.id}" ${s.tenses[T.id] ? 'checked' : ''}> ${T.emoji} <b>${esc(T.name)}</b> ${T.core ? '' : '<small>(bonus)</small>'}</label>`).join('')}</div>
-    <p class="muted">Repère CE2-CM1 : présent, futur, imparfait, passé composé, impératif. Les temps bonus se débloquent seuls avec les étoiles.</p>`;
+    <p class="muted">Repères scolaires (Suisse romande, 5H–6H, élèves de 8 à 10 ans) : présent, futur, imparfait, passé composé, impératif. Les temps bonus se débloquent seuls avec les étoiles.</p>`;
   }
 
   /* ---------- Partage ---------- */
