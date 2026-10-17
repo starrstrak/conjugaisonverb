@@ -81,7 +81,7 @@ const FX = (() => {
     const f = (v) => Math.max(0, Math.min(255, Math.round(v + amt * (amt > 0 ? 255 - v : v))));
     return '#' + [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(f).map((v) => v.toString(16).padStart(2, '0')).join('');
   }
-  function mascot({ stage = 0, mood = 'happy', color = '#7bd88f', hat = '', glasses = '', size = 160 } = {}) {
+  function mascot({ stage = 0, mood = 'happy', color = '#7bd88f', hat = '', glasses = '', neck = '', pet = '', size = 160 } = {}) {
     const dark = shade(color, -0.25), light = shade(color, 0.45);
     const eyeY = stage === 0 ? 118 : 104;
     const mouths = {
@@ -115,8 +115,10 @@ const FX = (() => {
     const hatTop = stage === 0 ? 38 : stage >= 3 ? 32 : 46;
     const hatSvg = hat ? `<text x="100" y="${hatTop}" font-size="54" text-anchor="middle" dominant-baseline="auto">${hat}</text>` : '';
     const glSvg = glasses ? `<text x="100" y="${eyeY + 16}" font-size="62" text-anchor="middle">${glasses}</text>` : '';
+    const neckSvg = neck ? `<text x="100" y="${eyeY + 62}" font-size="40" text-anchor="middle">${neck}</text>` : '';
+    const petSvg = pet ? `<text x="168" y="190" font-size="40" text-anchor="middle">${pet}</text>` : '';
     return `<svg class="mascot mood-${mood}" viewBox="0 0 200 200" width="${size}" height="${size}" role="img" aria-label="Conjugo, ta mascotte">
-      ${body}${eyes}${brows}${cheeks}${mouths[mood] || mouths.happy}${glSvg}${hatSvg}</svg>`;
+      ${body}${eyes}${brows}${cheeks}${mouths[mood] || mouths.happy}${neckSvg}${glSvg}${hatSvg}${petSvg}</svg>`;
   }
 
   return { configure, play, speak, confetti, vibrate, mascot, shade };

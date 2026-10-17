@@ -10,7 +10,9 @@ tout reste sur l'appareil.
 
 | Idée | Comment c'est fait |
 |---|---|
-| Jouer, pas réviser | Mascotte **Conjugo** qui grandit (œuf → dragon), XP, niveaux, pièces, boutique de chapeaux/lunettes/décors, 17 trophées, flamme des jours d'affilée, coffre du jour |
+| Jouer, pas réviser | Mascotte **Conjugo** qui grandit (œuf → dragon), XP, niveaux, pièces, flamme des jours d'affilée, coffre du jour, **155 trophées**, boutique (≈100 objets : chapeaux, lunettes, colliers, compagnons, décors, couleurs) et **avatar 3D** |
+| Récompenses | Trophées bronze → diamant (parties, séries, régularité, niveaux, étoiles, maîtrise, un par temps, par famille de verbes, chrono, erreurs corrigées, surprises secrètes…) avec barre de progression et « Bientôt ! » ; objets de boutique achetés avec des pièces **ou gagnés** grâce à un niveau / un trophée ; l'écran « Moi » regroupe Trophées · Boutique · Avatar 3D |
+| Avatar 3D | Débloqué au niveau 3. Se fait tourner au doigt, se transforme (25 formes : dragon de feu, de glace, licorne, robot, fantôme, abeille…), s'habille (≈100 accessoires : tête, lunettes, cou, dos, main, pieds, auras animées), 25 couleurs + motifs + matières, yeux/bouches, 16 décors 3D, 9 poses, 3 tenues sauvegardables, photo PNG partageable. On peut **essayer avant d'acheter**. Moteur maison dans un `<canvas>` : aucune dépendance, fonctionne hors-ligne |
 | Facile → difficile | Au début on **choisit** parmi 4 propositions ; quand le verbe est mieux connu, on **écrit** (clavier d'accents fourni) |
 | Les erreurs enseignent | Chaque erreur est **expliquée** : mauvaise personne, mauvais temps, terminaison, `ge`/`ç`, accents, auxiliaire, participe passé, accord… avec le rappel du cours. La question revient 2 questions plus tard. « Mes erreurs » regroupe ce qui reste fragile |
 | Se souvenir longtemps | Répétition espacée (boîtes de Leitner : 0 / 1 / 3 / 7 / 21 jours) par verbe × temps × personne. « Jouer » = la révision du jour |
@@ -66,7 +68,21 @@ Pour que des verbes deviennent « officiels » pour tous les appareils : les ajo
    (iPhone : Safari ➜ Partager ➜ Sur l'écran d'accueil · Android : menu ⋮ ➜ Installer l'application).
    Après la première visite, l'appli marche **hors-ligne**.
 
-Mettre à jour l'appli : modifier un fichier puis changer `CACHE` dans `sw.js` (ex. `conjugo-v2`) pour que les appareils rechargent.
+### Mettre à jour l'appli sans rien perdre
+
+Les données (joueurs, trophées, objets, pièces, avatar…) sont dans le navigateur de chaque appareil (clé `conju.v1`) : **une mise à jour du code ne les touche jamais**.
+Règles qui rendent la mise à jour « incrémentale » :
+
+1. Changer `CACHE` dans `sw.js` (ex. `conjugo-v5`) et y lister tout nouveau fichier : les appareils téléchargent la nouvelle version tout seuls, puis la page se recharge dès qu'on n'est pas en pleine partie (Espace parents ➜ Partager ➜ « Chercher une mise à jour » pour forcer).
+2. **Ne jamais supprimer ni renommer** un identifiant existant (trophée, objet de boutique, pièce d'avatar) : on **ajoute** seulement. Les anciens trophées, objets achetés (`p.owned`) et objets portés (`p.equipped`) gardent leur sens.
+3. Les nouveaux champs d'un joueur reçoivent une valeur par défaut au chargement (`Store.load`) ; la synchro fusionne par union (trophées, objets) ou « le plus récent gagne » (avatar), donc un appareil pas encore à jour ne fait rien perdre.
+4. Pour annoncer des nouveautés : ajouter une entrée dans `NEWS` et augmenter `REWARDS_VERSION` dans `js/rewards.js`. Au prochain lancement, chaque appareil attribue (sans rien retirer) les trophées **déjà mérités** et affiche les nouveautés **une seule fois**.
+
+### Ajouter des récompenses
+
+* **Trophée** : une ligne dans `js/rewards.js` (`series(...)` pour une suite bronze → diamant, ou `add({...})`) ; `val` = la mesure, `goal` = le seuil. Il est attribué automatiquement, même rétroactivement.
+* **Objet de boutique (mascotte 2D)** : une ligne dans `shop(...)` du même fichier. Prix en pièces (nombre), `'l12'` = niveau 12, `'b:streak7'` = trophée à gagner.
+* **Pièce d'avatar 3D** : une ligne `it('hat', 'id', 'Nom', '🎩', prix, (c, g, P) => { … })` dans `js/avatar-items.js` (accessoires) ou une entrée dans `js/avatar-parts.js` (formes, décors, yeux…). `npm test` construit et dessine **toutes** les pièces pour détecter une erreur.
 En local : `npm start` puis http://localhost:8080 (ou n'importe quel serveur statique).
 
 ## Format d'un verbe (`data/verbs.json`)
@@ -97,8 +113,10 @@ Aucune dépendance ni compilation : HTML + CSS + JavaScript.
 
 * `js/conjugate.js` moteur de conjugaison (règles + exceptions) · `js/explain.js` diagnostic des erreurs
 * `js/store.js` sauvegarde, profils, répétition espacée, partage, fusion · `js/sync.js` synchro Firestore (REST) · `firestore.rules` règles à publier · `js/fx.js` sons, voix, confettis, mascotte
+* `js/rewards.js` trophées, boutique, règles de déblocage · `js/rewards-ui.js` écrans Trophées / Boutique / Avatar, nouveautés après mise à jour
+* `js/avatar3d.js` moteur 3D (canvas) · `js/avatar-parts.js` formes, couleurs, visages, décors · `js/avatar-items.js` accessoires
 * `js/app.js` écrans et jeu · `js/parent.js` espace parents · `sw.js` mode hors-ligne
-* `tests/` : `npm test` vérifie ~150 formes conjuguées, le diagnostic d'erreurs, les indices et la fusion de synchro.
+* `tests/` : `npm test` vérifie ~150 formes conjuguées, le diagnostic d'erreurs, les indices, la fusion de synchro, la **migration des anciennes données** et le dessin de chaque pièce de l'avatar.
 
 ## Idées pour la suite
 
