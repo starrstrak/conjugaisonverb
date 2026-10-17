@@ -1,5 +1,5 @@
 /* Service worker : l'appli fonctionne hors-ligne. Change CACHE pour forcer une mise à jour. */
-const CACHE = 'conjugo-v7';
+const CACHE = 'conjugo-v8';
 const FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
   'js/conjugate.js', 'js/explain.js', 'js/store.js', 'js/fx.js', 'js/sync.js',

@@ -32,6 +32,7 @@ Accès protégé par un petit calcul. On y trouve :
 
 * **Verbes** : ajouter, modifier, supprimer/masquer un verbe, créer des **listes** (« Verbes de la semaine »…) qui deviennent des missions et peuvent être mises en avant sur l'accueil.
 * **Progrès** : réussite, temps acquis, verbes à retravailler, types d'erreurs fréquentes, dernières erreurs.
+* **Exercices** : choisir et moduler tout ce qui est joué — types de questions (choisir, écrire, « quel pronom ? », « quel temps ? » et leur fréquence), pronoms travaillés, familles de verbes, jeux visibles sur l'accueil, indices (autorisés ou non, nombre), question ratée reposée ou non, durée du défi chrono. Les valeurs par défaut reproduisent le jeu d'origine ; les réglages se synchronisent.
 * **Réglages** : objectif du jour, longueur des parties, choix/écriture, temps disponibles, sons, police.
 * **Partager** : lien de partage de verbes, export/import de fichier, sauvegarde complète.
 
