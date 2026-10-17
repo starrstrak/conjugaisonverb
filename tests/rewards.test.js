@@ -66,19 +66,24 @@ for (const old of ['hat:🎩', 'hat:🧢', 'hat:👑', 'hat:🎓', 'hat:🎀', '
 assert([['hat:🎩', 30], ['hat:👑', 80], ['theme:space', 60]].every(([id, pr]) => Rewards.SHOP.find((i) => i.id === id).price === pr), 'prix inchangés');
 assert(Rewards.SHOP.length >= 80, 'boutique agrandie : ' + Rewards.SHOP.length);
 
-// ---- avatar : tout se gagne (niveau ou trophée) ; seuls les objets de départ sont libres ----
+// ---- avatar : tout s'achète avec des pièces (comme la boutique) ; seuls les objets de départ sont libres ----
 const STARTER = { form: ['egg'], eyes: ['round', 'dots', 'happy', 'sleepy'], mouth: ['smile', 'open', 'flat', 'o'], pat: ['none'], fin: ['auto', 'matte'], pose: ['idle', 'wave', 'cheer', 'think', 'sleep'], scene: ['sky'] };
 const FREE_COLORS = ['#7bd88f', '#6ec6ff', '#ff9ecf', '#ffb35c', '#b79cff', '#ff7676', '#ffd93d', '#ffffff', '#4a4e69', '#2ec4b6', '#a0522d', '#f4a261'];
 const badLocks = [];
 for (const [slot, arr] of Object.entries(Parts.ITEMS)) for (const it of arr) {
-  const t = Rewards.parseLock(it.lock).t;
-  const free = t === 'free';
   if (slot === 'eyeColor') continue;
+  const free = Rewards.parseLock(it.lock).t === 'free';
   const allowed = slot === 'color' ? FREE_COLORS.includes(it.id) : (STARTER[slot] || []).includes(it.id);
-  if (free !== allowed) badLocks.push(slot + ':' + it.id + ' (' + t + ')');
-  if (t === 'coins') badLocks.push('achat en pièces interdit : ' + slot + ':' + it.id);
+  if (free !== allowed) badLocks.push(slot + ':' + it.id + ' (devrait être ' + (allowed ? 'libre' : 'payant') + ')');
+  if (!free && !(Rewards.priceOf(it) > 0)) badLocks.push('pas de prix : ' + slot + ':' + it.id);
 }
 assert.deepStrictEqual(badLocks, [], badLocks.join('\n'));
+{ // achat : un objet payant n'est utilisable qu'après achat (ou en atteignant le niveau / trophée)
+  const crown = Parts.find('hat', 'crown'), pp = { owned: [], badges: {} };
+  assert(Rewards.priceOf(crown) > 0 && Rewards.canBuy(pp, { level: 1 }, crown, 'av:hat:crown') && !Rewards.usable(pp, { level: 1 }, crown.lock, 'av:hat:crown'));
+  pp.owned.push('av:hat:crown');
+  assert(Rewards.usable(pp, { level: 1 }, crown.lock, 'av:hat:crown') && !Rewards.canBuy(pp, { level: 1 }, crown, 'av:hat:crown'));
+}
 assert(Parts.FORMS.length >= 39, 'avatars : ' + Parts.FORMS.length);
 // ce qu'un joueur avait déjà acheté reste utilisable
 assert(Rewards.usable({ owned: ['av:hat:crown'], badges: {} }, { level: 1 }, Parts.find('hat', 'crown').lock, 'av:hat:crown'));

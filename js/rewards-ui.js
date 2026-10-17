@@ -123,7 +123,7 @@ const RUI = (() => {
     const pv = AV.pv && AV.pv.slot === slot && AV.pv.id === id;
     const icon = cat === 'color' ? (id ? `<span class="swatch ${id === 'rainbow' ? 'rb' : ''}" style="background:${id === 'rainbow' ? '' : id}"></span>` : '<span class="e">🎯</span>') : cat === 'eyeColor' ? `<span class="swatch" style="background:${id}"></span>` : `<span class="e">${none ? '🚫' : it.emoji || ''}</span>`;
     const name = none ? (slot.startsWith('col.') ? 'Auto' : 'Aucun') : cat === 'eyeColor' ? '' : esc(it.name);
-    const lab = on ? '✔' : ok ? '' : Rewards.lockText(it.lock);
+    const lab = on ? '✔' : ok ? '' : Rewards.priceOf(it) ? `🪙 ${Rewards.priceOf(it)}` : Rewards.lockText(it.lock);
     return `<button class="avt ${on ? 'on' : ''} ${pv ? 'try' : ''} ${ok ? '' : 'lock'}" data-act="av-tap" data-slot="${slot}" data-id="${esc(id)}" aria-pressed="${on}"><span class="ic">${icon}</span><small>${name}</small><em>${lab}</em></button>`;
   };
   const section = (p, x, title, slot, opt) => {
@@ -157,8 +157,8 @@ const RUI = (() => {
   function bannerHtml(p) {
     if (!AV.pv) return '';
     const pv = AV.pv, it = pv.id ? P.find(catalogOf(pv.slot), pv.id) : null; if (!it) return '';
-    const l = Rewards.parseLock(it.lock);
-    const buy = l.t === 'coins' ? `<button class="small primary" data-act="av-buy" ${p.coins >= l.n ? '' : 'disabled'}>Acheter 🪙 ${l.n}</button>${p.coins >= l.n ? '' : `<small>Il te manque ${l.n - p.coins} 🪙</small>`}` : `<small>🔒 ${esc(Rewards.lockHelp(it.lock))}</small>`;
+    const price = Rewards.priceOf(it), free = Rewards.lockHelp(it.lock);
+    const buy = price ? `<button class="small primary" data-act="av-buy" ${p.coins >= price ? '' : 'disabled'}>Acheter 🪙 ${price}</button>${p.coins >= price ? '' : `<small>Il te manque ${price - p.coins} 🪙</small>`}${free ? `<small>ou : ${esc(free.replace(' pour le débloquer.', ' (gratuit).'))}</small>` : ''}` : `<small>🔒 ${esc(free)}</small>`;
     return `<div class="card avbanner"><span>👀 Essai : <b>${esc(it.emoji || '')} ${esc(it.name || it.id)}</b></span><div class="row">${buy}<button class="small" data-act="av-cancel">Annuler</button></div></div>`;
   }
   function refreshPanel() {
@@ -227,10 +227,10 @@ const RUI = (() => {
     'av-cancel': () => { AV.pv = null; refreshPanel(); },
     'av-buy': () => {
       const p = prof(), pv = AV.pv; if (!pv) return;
-      const cat = catalogOf(pv.slot), it = P.find(cat, pv.id), l = it && Rewards.parseLock(it.lock);
-      if (!it || l.t !== 'coins') return;
-      if (p.coins < l.n) { toast(`Il te manque ${l.n - p.coins} 🪙 — continue à jouer !`); return; }
-      p.coins -= l.n; p.owned.push(P.itemId(cat, it.id)); renderTop(p);
+      const cat = catalogOf(pv.slot), it = P.find(cat, pv.id), price = Rewards.priceOf(it);
+      if (!it || !price || Rewards.usable(p, AV.x, it.lock, P.itemId(cat, it.id))) return;
+      if (p.coins < price) { toast(`Il te manque ${price - p.coins} 🪙 — continue à jouer !`); return; }
+      p.coins -= price; p.owned.push(P.itemId(cat, it.id)); renderTop(p);
       FX.play('win'); FX.confetti(50);
       apply(p, pv.slot, pv.id);
     },

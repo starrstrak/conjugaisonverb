@@ -8,8 +8,8 @@
   else root.Rewards = factory(root.Conj, root.AvatarParts);
 })(typeof self !== 'undefined' ? self : this, function (Conj, Parts) {
   'use strict';
-  const APP_VERSION = '1.2.0';
-  const REWARDS_VERSION = 3;
+  const APP_VERSION = '1.3.0';
+  const REWARDS_VERSION = 4;
   const AVATAR_LEVEL = 3; // niveau à atteindre pour débloquer l'avatar 3D
   const TIER_COINS = [10, 20, 35, 60];
   const TIER_NAMES = ['Bronze', 'Argent', 'Or', 'Diamant'];
@@ -228,6 +228,9 @@
     if (l.t === 'badge') return !!(p.badges && p.badges[l.id]);
     return false;
   }
+  /** Prix en pièces d'un objet d'avatar (0 = gratuit). Le niveau / trophée de `lock` l'offre sans payer. */
+  const priceOf = (it) => (it && it.price) || 0;
+  const canBuy = (p, x, it, ownedId) => priceOf(it) > 0 && !usable(p, x, it.lock, ownedId);
   function lockText(lock) {
     const l = parseLock(lock);
     if (l.t === 'coins') return `🪙 ${l.n}`;
@@ -295,6 +298,11 @@
 
   /* ---------- nouveautés affichées une fois après la mise à jour ---------- */
   const NEWS = [
+    { v: 4, title: 'Personnalise ton avatar avec tes pièces !', lines: [
+      '🪙 Chaque avatar, accessoire, couleur, matière, pose et décor 3D s\'achète avec des pièces, comme dans la boutique.',
+      '🎁 Atteindre le niveau ou le trophée indiqué sur un objet l\'offre toujours gratuitement.',
+      '👀 Tu peux essayer un objet sur ton avatar avant de l\'acheter. Ce que tu as déjà est conservé.',
+    ] },
     { v: 3, title: 'Nouveaux avatars et trophées !', lines: [
       '🐲 14 nouveaux avatars à débloquer : renard, panda, pingouin, lion, vampire, chevalier, golem, dragon éclair…',
       '🏆 Plus de 30 nouveaux trophées, du plus facile au plus légendaire.',
@@ -310,6 +318,6 @@
 
   return {
     APP_VERSION, REWARDS_VERSION, AVATAR_LEVEL, TIER_COINS, TIER_NAMES, CATS, BADGES, BADGE_BY_ID, FAMILIES, SHOP, SKINS, SHOP_KINDS, NONE, NEWS,
-    context, progress, award, earnedCount, parseLock, usable, lockText, lockHelp, owns, avatarUnlocked, formsUnlocked, avatarOf, clampAvatar,
+    priceOf, canBuy, context, progress, award, earnedCount, parseLock, usable, lockText, lockHelp, owns, avatarUnlocked, formsUnlocked, avatarOf, clampAvatar,
   };
 });
