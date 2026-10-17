@@ -1,4 +1,5 @@
 /* Démarrage de l'appli. */
+function maybeReload() { if (A.reloadPending && A.view !== 'game' && $('#modal').hidden) { A.reloadPending = false; location.reload(); return true; } return false; }
 (async function boot() {
   try {
     const r = await fetch('data/verbs.json', { cache: 'no-cache' });
@@ -22,6 +23,7 @@
     else if (changed) refreshVerbs();
   });
   if (Sync.on) Sync.queue(600);
+  RUI.afterUpdate(); // trophées déjà mérités + « Nouveautés » (une seule fois par appareil après la mise à jour)
 
   // lien de synchro : #sync=...
   if (location.hash.startsWith('#sync=')) {
@@ -39,6 +41,9 @@
   }
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    // mise à jour sans rien effacer : quand la nouvelle version prend la main, on recharge dès qu'on n'est pas en pleine partie
+    const had = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (had) A.reloadPending = true; maybeReload(); });
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 })();

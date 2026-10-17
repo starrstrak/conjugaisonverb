@@ -67,6 +67,7 @@ function setView(html) {
 }
 function go(view, params = {}) {
   A.view = view; A.params = params;
+  if (A.reloadPending && view !== 'game' && typeof maybeReload === 'function' && maybeReload()) return;
   clearTimerIfAny();
   render();
 }
@@ -84,7 +85,7 @@ function render() {
   $$('#nav button').forEach((b) => b.classList.toggle('on', b.dataset.go === navOf(A.view)));
   (views[A.view] || views.home)(A.params);
 }
-const navOf = (v) => ({ home: 'home', adventure: 'adventure', world: 'adventure', setup: 'adventure', memo: 'memo', trophies: 'trophies', shop: 'trophies' }[v] || '');
+const navOf = (v) => ({ home: 'home', adventure: 'adventure', world: 'adventure', setup: 'adventure', memo: 'memo', trophies: 'trophies', shop: 'trophies', avatar: 'trophies' }[v] || '');
 
 function renderTop(p) {
   const lvl = Store.levelOf(p.xp);
@@ -121,6 +122,7 @@ views.welcome = () => {
     const f = new FormData(e.target);
     const name = String(f.get('name')).trim();
     if (!name) return;
+    Store.data.seenVer = Rewards.REWARDS_VERSION;
     Store.addProfile(name, f.get('color'));
     FX.play('win'); go('home');
   });
@@ -161,7 +163,7 @@ views.home = () => {
   const featVerbs = feat ? A.verbs.filter((v) => (v.lists || []).includes(feat)) : [];
   setView(`
   <section class="hero">
-    <div class="mascot-wrap">${FX.mascot({ stage, mood: 'happy', color: skinOf(p), hat: p.equipped.hat, glasses: p.equipped.glasses, size: 170 })}
+    <div class="mascot-wrap">${RUI.homeHero(p) ? '<div id="homeav" class="homeav"></div>' : mascotOf(p, { stage, size: 170 })}
       <small class="stage">${esc(Store.STAGE_NAMES[stage])} · niveau ${lvl}</small></div>
     <div class="bubble">${esc(messageFor(p))}</div>
   </section>
@@ -180,11 +182,15 @@ views.home = () => {
     <button class="tile t-memo" data-go="memo"><span>📖</span>Mémo</button>
     <button class="tile t-trophy" data-go="trophies"><span>🏆</span>Trophées</button>
     <button class="tile t-shop" data-go="shop"><span>🎒</span>Boutique</button>
+    <button class="tile t-av" data-go="avatar"><span>🧙</span>Avatar 3D${Rewards.avatarUnlocked({ level: lvl }) ? '' : '<em>🔒</em>'}</button>
   </section>
   ${Store.memoryOnly ? '<p class="warn">⚠️ La sauvegarde est désactivée dans ce navigateur : la progression sera perdue à la fermeture.</p>' : ''}
   ${installHint()}`);
+  if (RUI.homeHero(p)) RUI.mountHome(p);
 };
 const skinOf = (p) => p.color;
+/** Mascotte 2D avec tout ce que porte le joueur (chapeau, lunettes, cou, compagnon). */
+const mascotOf = (p, o = {}) => FX.mascot(Object.assign({ stage: Store.stageOf(Store.levelOf(p.xp)), mood: 'happy', color: skinOf(p), hat: p.equipped.hat, glasses: p.equipped.glasses, neck: p.equipped.neck || '', pet: p.equipped.pet || '', size: 150 }, o));
 function installHint() {
   if (window.matchMedia && matchMedia('(display-mode: standalone)').matches) return '';
   if (A.deferredInstall) return '<button class="card install" data-act="install">📲 <b>Installer l\'appli</b><small>Pour jouer même sans internet</small></button>';
@@ -270,67 +276,6 @@ views.memo = ({ inf, t, q } = {}) => {
     <div class="chips verbs">${vs.filter((x) => !fl || x.inf.includes(fl)).map((x) => `<button class="pill ${v && x.inf === v.inf ? 'on' : ''}" data-act="memo-verb" data-v="${esc(x.inf)}" data-t="${tense}">${esc(x.emoji || '')} ${esc(x.inf)}</button>`).join('')}</div>`);
   const mq = $('#mq');
   mq.addEventListener('input', () => { const pos = mq.selectionStart; views.memo({ inf, t, q: mq.value }); const n = $('#mq'); n.focus(); n.setSelectionRange(pos, pos); A.params = { inf, t, q: mq.value }; });
-};
-
-/* ----- trophées ----- */
-const BADGES = [
-  { id: 'first', name: 'Premier pas', emoji: '👣', desc: 'Termine ta première partie', test: (p) => p.stats.sessions >= 1 },
-  { id: 'combo5', name: 'En feu', emoji: '🔥', desc: '5 bonnes réponses d\'affilée', test: (p) => p.stats.bestCombo >= 5 },
-  { id: 'combo10', name: 'Inarrêtable', emoji: '⚡', desc: '10 bonnes réponses d\'affilée', test: (p) => p.stats.bestCombo >= 10 },
-  { id: 'perfect', name: 'Sans faute', emoji: '💯', desc: 'Une partie parfaite', test: (p) => p.stats.perfect >= 1 },
-  { id: 'perfect5', name: 'Perfectionniste', emoji: '💎', desc: '5 parties parfaites', test: (p) => p.stats.perfect >= 5 },
-  { id: 'q100', name: 'Centurion', emoji: '🛡️', desc: '100 bonnes réponses', test: (p) => p.stats.correct >= 100 },
-  { id: 'q500', name: 'Grand maître', emoji: '👑', desc: '500 bonnes réponses', test: (p) => p.stats.correct >= 500 },
-  { id: 'streak3', name: 'Petite flamme', emoji: '🕯️', desc: '3 jours d\'affilée', test: (p) => p.streak.count >= 3 },
-  { id: 'streak7', name: 'Semaine de feu', emoji: '🏮', desc: '7 jours d\'affilée', test: (p) => p.streak.count >= 7 },
-  { id: 'streak30', name: 'Légende', emoji: '🌟', desc: '30 jours d\'affilée', test: (p) => p.streak.count >= 30 },
-  { id: 'fixer', name: 'Chasseur d\'erreurs', emoji: '🔧', desc: 'Corrige 10 erreurs', test: (p) => p.stats.fixed >= 10 },
-  { id: 'explorer', name: 'Explorateur', emoji: '🧭', desc: 'Joue avec 4 temps différents', test: (p) => new Set(Object.keys(p.cards).map((k) => k.split('|')[1])).size >= 4 },
-  { id: 'verbs20', name: 'Collectionneur', emoji: '📚', desc: 'Réussis 20 verbes différents', test: (p) => new Set(Object.entries(p.cards).filter(([, c]) => c.c > 0).map(([k]) => k.split('|')[0])).size >= 20 },
-  { id: 'chrono', name: 'Éclair', emoji: '⏱️', desc: '15 bonnes réponses au défi chrono', test: (p) => p.stats.chronoBest >= 15 },
-  { id: 'master', name: 'Maître d\'un temps', emoji: '🏅', desc: 'Maîtrise un verbe à un temps entier', test: (p) => masteredCount(p) >= 1 },
-  { id: 'stars10', name: 'Chasseur d\'étoiles', emoji: '✨', desc: 'Gagne 10 étoiles', test: (p) => starsTotal(p) >= 10 },
-  { id: 'lvl5', name: 'Dragonneau', emoji: '🐲', desc: 'Atteins le niveau 5', test: (p) => Store.levelOf(p.xp) >= 5 },
-];
-function masteredCount(p) {
-  const seen = new Set(Object.keys(p.cards).map((k) => k.split('|').slice(0, 2).join('|')));
-  let n = 0;
-  for (const s of seen) {
-    const [inf, t] = s.split('|'); const v = verbByInf(inf);
-    if (v && TENSE_BY_ID[t] && cellsOf(v, t).length && Store.mastery(p, inf, t, cellsOf(v, t)) === 1) n++;
-  }
-  return n;
-}
-views.trophies = () => {
-  const p = prof();
-  const total = p.stats.correct + p.stats.wrong;
-  const acc = total ? Math.round((p.stats.correct / total) * 100) : 0;
-  setView(`<h2 class="title">🏆 Mes trophées</h2>
-  <section class="stats card"><div><b>${p.stats.correct}</b><small>bonnes réponses</small></div><div><b>${acc}%</b><small>de réussite</small></div><div><b>${p.stats.bestCombo}</b><small>meilleur combo</small></div><div><b>${masteredCount(p)}</b><small>temps maîtrisés</small></div></section>
-  <div class="badges">${BADGES.map((b) => `<div class="badge ${p.badges[b.id] ? 'got' : ''}"><span>${p.badges[b.id] ? b.emoji : '❔'}</span><b>${esc(b.name)}</b><small>${esc(b.desc)}</small></div>`).join('')}</div>`);
-};
-
-/* ----- boutique ----- */
-const SHOP = [
-  ...['🎩:Haut-de-forme:30', '🧢:Casquette:25', '👑:Couronne:80', '🎓:Chapeau de diplômé:50', '🎀:Nœud:25', '🤠:Cowboy:40', '🌸:Fleur:20'].map((s) => { const [v, n, pr] = s.split(':'); return { id: 'hat:' + v, kind: 'hat', val: v, name: n, price: +pr }; }),
-  ...['🕶️:Lunettes de soleil:40', '👓:Lunettes rondes:25', '🥽:Lunettes de plongée:35'].map((s) => { const [v, n, pr] = s.split(':'); return { id: 'glasses:' + v, kind: 'glasses', val: v, name: n, price: +pr }; }),
-  ...[['space', 'Espace', '🌌'], ['ocean', 'Océan', '🌊'], ['forest', 'Forêt', '🌲'], ['candy', 'Bonbons', '🍭']].map(([v, n, e]) => ({ id: 'theme:' + v, kind: 'theme', val: v, name: n, emoji: e, price: 60 })),
-];
-views.shop = () => {
-  const p = prof();
-  const lvl = Store.levelOf(p.xp), stage = Store.stageOf(lvl);
-  const item = (it) => {
-    const own = p.owned.includes(it.id) || it.price === 0;
-    const on = p.equipped[it.kind] === it.val;
-    return `<button class="item ${on ? 'on' : ''}" data-act="${own ? 'equip' : 'buy'}" data-id="${esc(it.id)}"><span class="e">${it.emoji || it.val}</span><small>${esc(it.name)}</small>
-      <em>${on ? 'Porté ✔' : own ? 'Mettre' : `🪙 ${it.price}`}</em></button>`;
-  };
-  setView(`<h2 class="title">🎒 Boutique</h2><p class="coins">🪙 <b>${p.coins}</b> pièces</p>
-  <div class="center preview">${FX.mascot({ stage, mood: 'cheer', color: p.color, hat: p.equipped.hat, glasses: p.equipped.glasses, size: 170 })}</div>
-  <h3>Chapeaux</h3><div class="items">${item({ id: 'hat:', kind: 'hat', val: '', name: 'Aucun', emoji: '🚫', price: 0 })}${SHOP.filter((i) => i.kind === 'hat').map(item).join('')}</div>
-  <h3>Lunettes</h3><div class="items">${item({ id: 'glasses:', kind: 'glasses', val: '', name: 'Aucune', emoji: '🚫', price: 0 })}${SHOP.filter((i) => i.kind === 'glasses').map(item).join('')}</div>
-  <h3>Décors</h3><div class="items">${item({ id: 'theme:', kind: 'theme', val: '', name: 'Ciel', emoji: '☁️', price: 0 })}${SHOP.filter((i) => i.kind === 'theme').map(item).join('')}</div>
-  <h3>Couleur de Conjugo</h3><div class="items">${COLORS.map((c) => { const own = p.owned.includes('skin:' + c); const price = c === '#7bd88f' ? 0 : c === '#ffd93d' ? 25 : 15; return `<button class="item ${p.color === c ? 'on' : ''}" data-act="${own || !price ? 'skin' : 'buyskin'}" data-c="${c}" data-price="${price}"><span class="swatch" style="background:${c}"></span><em>${p.color === c ? 'Choisi ✔' : own || !price ? 'Choisir' : `🪙 ${price}`}</em></button>`; }).join('')}</div>`);
 };
 
 /* ---------- JEU ---------- */
@@ -577,7 +522,7 @@ function renderQuestion() {
       ${S.cfg.timed ? `<b id="timer" class="timer ${S.timeLeft <= 10 ? 'low' : ''}">${S.timeLeft}</b>` : `<small>${Math.min(S.asked, S.n)}/${total}</small>`}
       <span class="combo ${S.combo >= 2 ? 'on' : ''}" id="combo">🔥 ×${S.combo}</span></div>
     <div class="g-body">
-      <div class="g-head"><span class="mini" id="mini">${FX.mascot({ stage: Store.stageOf(Store.levelOf(p.xp)), mood, color: p.color, hat: p.equipped.hat, glasses: p.equipped.glasses, size: 74 })}</span>
+      <div class="g-head"><span class="mini" id="mini">${mascotOf(p, { mood, size: 74 })}</span>
         <div><span class="chip-t" style="--c:${T.color}">${T.emoji} ${esc(T.name)}</span>${q.retry ? '<span class="chip-t retry">🔁 On réessaie</span>' : ''}${timelineHTML(T)}</div></div>
       <div class="vcard"><span class="big-e">${esc(q.v.emoji || '📘')}</span><b>${esc(q.v.inf)}</b>
         <button class="small" data-act="say" data-text="${esc(q.v.inf)}" aria-label="Écouter le verbe">🔊</button></div>
@@ -629,7 +574,7 @@ function resolve(ok, given, verdict) {
     $('#fb').innerHTML = `<div class="fb ok"><b>🎉 ${msg}</b><span>+${gain} XP${S.combo >= 2 && !q.retry ? ` · combo ×${S.combo}` : ''}</span>
       <button class="small" data-act="say" data-text="${esc(speech)}" aria-label="Écouter">🔊</button></div>`;
     $('#answer').hidden = true;
-    const m = $('#mini'); if (m) m.innerHTML = FX.mascot({ stage: Store.stageOf(Store.levelOf(p.xp)), mood: 'cheer', color: p.color, hat: p.equipped.hat, glasses: p.equipped.glasses, size: 74 });
+    const m = $('#mini'); if (m) m.innerHTML = mascotOf(p, { mood: 'cheer', size: 74 });
     if (S.levelUps.length && S.levelUps.length !== q.lvlShown) { q.lvlShown = S.levelUps.length; FX.play('level'); FX.confetti(120); toast(`Niveau ${S.levelUps[S.levelUps.length - 1]} ! 🎊`); }
     if (!S.cfg.timed) FX.speak(speech);
     if (d.count >= settingsGoal() && !d.chest) { /* le coffre est ouvert à la fin de la partie */ }
@@ -660,7 +605,7 @@ function resolve(ok, given, verdict) {
   const endings = Explain.endingTable(forms(q.v), q.t);
   const sentence = $('#sentence');
   if (sentence && q.type !== 'pronoun' && q.type !== 'tense') sentence.innerHTML = sentenceHTML(q, `<span class="filled ko"><s>${esc(plainText(given))}</s></span> <span class="filled ok">${fmt(q.cell)}</span>`);
-  const m = $('#mini'); if (m) m.innerHTML = FX.mascot({ stage: Store.stageOf(Store.levelOf(p.xp)), mood: 'oops', color: p.color, hat: p.equipped.hat, glasses: p.equipped.glasses, size: 74 });
+  const m = $('#mini'); if (m) m.innerHTML = mascotOf(p, { mood: 'oops', size: 74 });
   $('#answer').hidden = true;
   $('#fb').innerHTML = `<div class="fb ko">
     <h3>🤔 ${esc(info.title)}</h3>
@@ -689,7 +634,7 @@ function finishSession() {
   const S = A.S; if (!S) return;
   clearTimerIfAny(); clearTimeout(S.autoNext);
   const p = prof(), cfg = S.cfg;
-  const before = new Set(Object.keys(p.badges));
+  const before = Object.assign({}, p.badges), xBefore = { level: S.lvl0 };
   const answered = S.answered;
   const mainTotal = cfg.timed ? answered : S.n;
   let stars = 0, newStars = 0;
@@ -711,12 +656,24 @@ function finishSession() {
   clearResume();
   if (!cfg.timed && S.first === S.n && S.n >= 5) p.stats.perfect++;
   p.stats.bestCombo = Math.max(p.stats.bestCombo, S.maxCombo);
-  if (answered >= 5) Store.bumpStreak(p);
+  if (cfg.timed) RUI.bump(p, 'chronos');
+  if (answered >= 5) {
+    const now = new Date(), gap = p.streak.last ? Store.dayNum(Store.today()) - Store.dayNum(p.streak.last) : 0, firstToday = p.streak.last !== Store.today();
+    if (firstToday && gap > 7) p.stats.comeback = 1;
+    Store.bumpStreak(p);
+    if (firstToday) RUI.bump(p, 'days');
+    p.stats.bestStreak = Math.max(p.stats.bestStreak || 0, p.streak.count);
+    if (now.getHours() < 8) p.stats.early = 1;
+    if ([0, 6].includes(now.getDay())) p.stats.weekend = 1;
+  }
+  if (!cfg.timed && S.n >= 10 && !S.hintsUsed) p.stats.noHint = 1;
+  if (!cfg.timed && S.n >= 10 && S.first === S.n && Date.now() - S.startedAt < 90000) p.stats.fast = 1;
   const d = Store.touchDaily(p);
-  if (d.count >= settingsGoal() && !d.chest) { d.chest = true; p.coins += 20; S.chest = 20; S.coins += 20; }
+  if (d.count >= settingsGoal() && !d.chest) { d.chest = true; p.coins += 20; S.chest = 20; S.coins += 20; RUI.bump(p, 'chests'); }
   S.stars = stars; S.newStars = newStars;
-  S.newBadges = BADGES.filter((b) => !before.has(b.id) && b.test(p));
-  S.newBadges.forEach((b) => { p.badges[b.id] = Date.now(); p.coins += 10; S.coins += 10; });
+  const aw = Rewards.award(p, RUI.ctx(p));
+  S.newBadges = aw.list; p.coins += aw.coins; S.coins += aw.coins;
+  S.unlocks = RUI.unlockedBetween({ level: xBefore.level, badges: before }, { level: Store.levelOf(p.xp), badges: p.badges });
   Store.save();
   A.view = 'result'; render();
   if (stars >= 2 || S.chest || S.newBadges.length) { FX.play('win'); FX.confetti(140); } else FX.play('ok');
@@ -729,7 +686,7 @@ views.result = () => {
   const title = cfg.timed ? (S.newRecord ? 'Nouveau record ! 🏅' : 'Temps écoulé !') : S.stars === 3 ? 'Parfait ! 🌟' : S.stars === 2 ? 'Très bien ! 🎉' : S.stars === 1 ? 'Bien joué ! 👍' : 'Courage, tu progresses ! 💪';
   const lvl = Store.levelOf(p.xp), stage = Store.stageOf(lvl);
   setView(`<section class="result">
-    <div class="center">${FX.mascot({ stage, mood, color: p.color, hat: p.equipped.hat, glasses: p.equipped.glasses, size: 150 })}</div>
+    <div class="center">${mascotOf(p, { stage, mood, size: 150 })}</div>
     <h1>${title}</h1>
     <div class="bigstars">${[1, 2, 3].map((k) => `<i class="${k <= S.stars ? 'on' : ''}" style="animation-delay:${k * 160}ms">★</i>`).join('')}</div>
     <div class="stats card">
@@ -740,7 +697,9 @@ views.result = () => {
     ${S.newStars ? `<p class="reward">⭐ Nouvelle${S.newStars > 1 ? 's' : ''} étoile${S.newStars > 1 ? 's' : ''} : +${S.newStars * 5} 🪙</p>` : ''}
     ${S.levelUps.length ? `<p class="reward">🆙 Niveau ${S.levelUps[S.levelUps.length - 1]} atteint !${Store.stageOf(S.levelUps[S.levelUps.length - 1]) > Store.stageOf(S.lvl0) ? ` Conjugo devient un <b>${esc(Store.STAGE_NAMES[Store.stageOf(S.levelUps[S.levelUps.length - 1])])}</b> !` : ''}</p>` : ''}
     ${S.chest ? '<p class="reward">🎁 Coffre du jour ouvert : +20 🪙 !</p>' : ''}
-    ${S.newBadges.map((b) => `<p class="reward">${b.emoji} Nouveau trophée : <b>${esc(b.name)}</b></p>`).join('')}
+    ${S.newBadges.slice(0, 6).map((b) => `<p class="reward">${b.emoji} Nouveau trophée : <b>${esc(b.name)}</b> <small>(+${Rewards.TIER_COINS[b.tier - 1]} 🪙)</small></p>`).join('')}${S.newBadges.length > 6 ? `<p class="reward">🏆 … et ${S.newBadges.length - 6} autres trophées !</p>` : ''}
+    ${S.lvl0 < Rewards.AVATAR_LEVEL && Store.levelOf(p.xp) >= Rewards.AVATAR_LEVEL ? '<p class="reward">🧙 <b>Ton avatar 3D est débloqué !</b> <button class="small primary" data-go="avatar">Le découvrir</button></p>' : ''}
+    ${S.unlocks && S.unlocks.length ? `<p class="reward">🎁 ${S.unlocks.length} nouveauté${S.unlocks.length > 1 ? 's' : ''} débloquée${S.unlocks.length > 1 ? 's' : ''} : ${S.unlocks.slice(0, 8).map((u) => esc(u.emoji || u.val || '')).join(' ')} <button class="small" data-go="shop">Voir</button></p>` : ''}
     ${S.mistakes.length ? `<h3>À retenir 🧠</h3><div class="mistakes">${S.mistakes.map((m) => `<details class="card"><summary>${m.q.v.emoji ? esc(m.q.v.emoji) + ' ' : ''}<b>${esc(m.q.v.inf)}</b> · ${esc(TENSE_BY_ID[m.q.t].name)} · ${esc(PERSONS[m.q.p])} → <b class="end">${esc(plainText(first(m.q.cell)))}</b></summary>
       <p><s>${esc(plainText(m.given))}</s></p>${m.info.lines.map((l) => `<p>${esc(l)}</p>`).join('')}<p class="tip">💡 ${esc(m.info.tip)}</p></details>`).join('')}</div>` : ''}
     <div class="actions"><button class="big primary" data-act="again">Rejouer ↻</button><button class="big" data-go="home">Accueil 🏠</button></div></section>`);
@@ -749,7 +708,8 @@ views.result = () => {
 /* ---------- actions ---------- */
 function toast(msg) {
   const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg;
-  $('#toasts').appendChild(t); setTimeout(() => t.classList.add('out'), 2200); setTimeout(() => t.remove(), 2700);
+  const box = $('#toasts'); while (box.children.length >= 3) box.firstChild.remove(); // pas plus de 3 messages à la fois
+  box.appendChild(t); setTimeout(() => t.classList.add('out'), 2200); setTimeout(() => t.remove(), 2700);
 }
 function modal(html, onClose) {
   const m = $('#modal'); m.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">${html}</div>`; m.hidden = false;
@@ -807,7 +767,7 @@ const actions = {
     const max = q.type === 'type' ? 3 : 2;
     if ((q.hintLevel || 0) >= max) return;
     q.hintLevel = (q.hintLevel || 0) + 1; q.hint = true;
-    if (q.hintLevel === 1) { const pr = prof(); pr.stats.hints = (pr.stats.hints || 0) + 1; }
+    if (q.hintLevel === 1) { const pr = prof(); pr.stats.hints = (pr.stats.hints || 0) + 1; if (A.S) A.S.hintsUsed = (A.S.hintsUsed || 0) + 1; }
     q.hints = q.hints || Explain.hints(q.v, forms(q.v), q.t, q.p);
     const h = q.hints, lines = [];
     lines.push(h.h1);
@@ -833,14 +793,6 @@ const actions = {
   resume: () => closeModal(),
   'quit-ok': () => { const m = $('#modal'); m._close = null; closeModal(); const S = A.S; if (S && S.answered) { finishSession(); } else { clearResume(); go('home'); } },
   again: () => { const S = A.S; if (S && S.cfg.pool) { const cfg = Object.assign({}, S.cfg); if (cfg.mode === 'review') cfg.pool = reviewPool(prof(), 10); startSession(cfg); } else if (S) startSession(S.cfg); },
-  buy: (el) => {
-    const p = prof(), it = SHOP.find((i) => i.id === el.dataset.id); if (!it) return;
-    if (p.coins < it.price) { toast(`Il te manque ${it.price - p.coins} 🪙 — continue à jouer !`); return; }
-    p.coins -= it.price; p.owned.push(it.id); p.equipped[it.kind] = it.val; FX.play('win'); Store.save(); render();
-  },
-  equip: (el) => { const [kind, val] = el.dataset.id.split(':'); const p = prof(); p.equipped[kind] = p.equipped[kind] === val && val ? '' : val; FX.play('tap'); Store.save(); render(); },
-  skin: (el) => { const p = prof(); p.color = el.dataset.c; Store.save(); render(); },
-  buyskin: (el) => { const p = prof(), pr = +el.dataset.price; if (p.coins < pr) { toast(`Il te manque ${pr - p.coins} 🪙`); return; } p.coins -= pr; p.owned.push('skin:' + el.dataset.c); p.color = el.dataset.c; FX.play('win'); Store.save(); render(); },
   install: async () => { const e = A.deferredInstall; if (!e) return; e.prompt(); await e.userChoice; A.deferredInstall = null; render(); },
   'install-help': () => modal(`<h2>📲 Installer l'appli</h2>
     <p><b>iPhone / iPad (Safari)</b> : touche le bouton Partager <span class="kbd">⬆️</span> puis « Sur l'écran d'accueil ».</p>

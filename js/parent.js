@@ -246,7 +246,9 @@ const Parent = (() => {
       <textarea id="fbcfg" rows="5" placeholder='const firebaseConfig = { apiKey: "…", projectId: "…", … };'></textarea>
       <button class="big primary" data-act="sync-enable">Activer la synchro</button>
       <p class="muted">Déjà configurée sur un autre appareil ? Ouvre simplement le lien de synchro qu'on t'a envoyé.</p></section>`;
-    return `${syncCard}<section class="card"><h3>📲 Donner l'appli à quelqu'un</h3>
+    const updCard = `<section class="card"><h3>🔄 Version de l'appli</h3><p class="muted">Conjugo <b>${Rewards.APP_VERSION}</b> · récompenses v${Rewards.REWARDS_VERSION}. Les mises à jour se téléchargent toutes seules ; tes joueurs, trophées et objets sont conservés.</p>
+      <button class="big" data-act="s-update">🔄 Chercher une mise à jour</button></section>`;
+    return `${syncCard}${updCard}<section class="card"><h3>📲 Donner l'appli à quelqu'un</h3>
       <p>L'appli est publique : n'importe qui peut l'ouvrir avec ce lien (téléphone, tablette ou ordinateur), sans compte ni installation.</p>
       <input readonly value="${esc(appUrl)}" id="appurl" aria-label="Adresse de l'appli">
       <div class="actions"><button class="big primary" data-act="s-appcopy">📋 Copier le lien</button>${navigator.share ? '<button class="big" data-act="s-appshare">📤 Envoyer…</button>' : ''}</div>
@@ -323,6 +325,14 @@ const Parent = (() => {
     's-native': () => navigator.share({ title: 'Verbes pour Conjugo', text: 'Voici des verbes à ajouter dans l\'appli de conjugaison :', url: $('#shareurl').value }).catch(() => {}),
     's-export': () => download('verbes-conjugo.json', { v: 1, by: Store.data.author || '', verbs: A.verbs.filter((v) => v._custom || v._mod).map(({ _custom, _mod, ...v }) => v) }),
     's-import': () => pickFile((o) => confirmImport(Array.isArray(o) ? o : o.verbs || [], o.by || '')),
+    's-update': async () => {
+      try {
+        const r = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
+        if (!r) { toast('Mise à jour automatique indisponible ici (ouvre l\'appli installée).'); return; }
+        toast('Recherche en cours…'); A.reloadPending = false; await r.update();
+        setTimeout(() => toast(r.installing || r.waiting ? 'Nouvelle version trouvée : rechargement…' : 'Tu as déjà la dernière version ✔'), 1500);
+      } catch (e) { toast('Impossible de vérifier (pas d\'internet ?)'); }
+    },
     's-backup': () => { download('sauvegarde-conjugo.json', { app: 'conjugo', v: 1, data: Store.data }); Store.data.lastBackup = Date.now(); Store.save(); showPersist(); },
     's-restore': () => pickFile((o) => {
       if (!o || o.app !== 'conjugo' || !o.data) { toast('Ce n\'est pas une sauvegarde Conjugo'); return; }

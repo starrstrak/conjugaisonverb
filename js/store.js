@@ -22,11 +22,11 @@
     id: 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
     name: String(name).slice(0, 20), color: color || '#7bd88f',
     xp: 0, coins: 0, streak: { count: 0, last: '' }, daily: { date: '', count: 0, chest: false },
-    cards: {}, stars: {}, badges: {}, owned: ['skin:#7bd88f'], equipped: { hat: '', glasses: '', theme: '' },
+    cards: {}, stars: {}, badges: {}, owned: ['skin:#7bd88f'], equipped: { hat: '', glasses: '', theme: '', neck: '', pet: '' }, avatar: null,
     stats: { sessions: 0, correct: 0, wrong: 0, bestCombo: 0, perfect: 0, chronoBest: 0, fixed: 0 },
     errKinds: {}, errLog: [], created: Date.now(),
   });
-  const emptyData = () => ({ v: 1, settings: defaultSettings(), profiles: [], current: '', customVerbs: [], hiddenBase: [], author: '', verbMeta: { tomb: {}, hid: {} }, settingsT: 0, delP: {}, sync: null });
+  const emptyData = () => ({ v: 1, settings: defaultSettings(), profiles: [], current: '', customVerbs: [], hiddenBase: [], author: '', verbMeta: { tomb: {}, hid: {} }, settingsT: 0, delP: {}, sync: null, seenVer: 0 });
 
   let data = emptyData();
   let base = [];
@@ -41,7 +41,11 @@
         data = Object.assign(emptyData(), d);
         data.settings = Object.assign(defaultSettings(), d.settings || {});
         data.settings.tenses = Object.assign(defaultSettings().tenses, (d.settings || {}).tenses || {});
-        data.profiles = (d.profiles || []).map((p) => Object.assign(newProfile(p.name || '?'), p));
+        data.profiles = (d.profiles || []).map((p) => {
+          const q = Object.assign(newProfile(p.name || '?'), p);
+          q.equipped = Object.assign(newProfile('?').equipped, p.equipped || {}); // nouvelles catégories ajoutées sans rien perdre
+          return q;
+        });
         data.verbMeta = Object.assign({ tomb: {}, hid: {} }, d.verbMeta || {});
         // anciennes données : verbes masqués sans date → on leur en donne une
         (data.hiddenBase || []).forEach((i) => { if (!data.verbMeta.hid[i]) data.verbMeta.hid[i] = { h: 1, t: 1 }; });
@@ -239,6 +243,11 @@
     m.badges = {};
     for (const k of new Set([...Object.keys(a.badges || {}), ...Object.keys(b.badges || {})])) m.badges[k] = Math.min(...[(a.badges || {})[k], (b.badges || {})[k]].filter(Boolean));
     m.owned = [...new Set([...(a.owned || []), ...(b.owned || [])])];
+    const older = newer === a ? b : a;
+    m.equipped = Object.assign({}, older.equipped || {}, newer.equipped || {});
+    const av = (x) => (x.avatar && x.avatar.t) || 0; // avatar 3D : la version modifiée en dernier gagne (une ancienne version de l'appli n'en a pas)
+    const bestAv = av(a) > av(b) ? a : av(b) > av(a) ? b : (stable(a.avatar || null) >= stable(b.avatar || null) ? a : b);
+    m.avatar = bestAv.avatar ? JSON.parse(JSON.stringify(bestAv.avatar)) : null;
     m.stats = {};
     for (const k of new Set([...Object.keys(a.stats || {}), ...Object.keys(b.stats || {})])) m.stats[k] = Math.max((a.stats || {})[k] || 0, (b.stats || {})[k] || 0);
     m.errKinds = {};
