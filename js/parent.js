@@ -215,7 +215,8 @@ const Parent = (() => {
   function settingsTab() {
     const s = settings();
     const sw = (k, label) => `<label class="chk"><input type="checkbox" data-set="${k}" ${s[k] ? 'checked' : ''}> ${label}</label>`;
-    return `<section class="card form">
+    const players = Store.data.profiles.length ? `<section class="card form"><h3>👧 Joueurs</h3><p class="muted">Modifier le prénom d'un joueur (la progression est conservée).</p>${Store.data.profiles.map((x) => `<label><span class="dot" style="background:${esc(x.color)}"></span> <input data-pname="${esc(x.id)}" value="${esc(x.name)}" maxlength="20" aria-label="Prénom du joueur" autocomplete="off"></label>`).join('')}</section>` : '';
+    return `${players}<section class="card form">
       <label>Objectif quotidien<select data-set="dailyGoal">${[10, 20, 30, 50].map((n) => `<option ${s.dailyGoal === n ? 'selected' : ''} value="${n}">${n} questions</option>`).join('')}</select></label>
       <label>Longueur d'une partie<select data-set="sessionLength">${[5, 10, 15, 20].map((n) => `<option ${(s.sessionLength || 10) === n ? 'selected' : ''} value="${n}">${n} questions</option>`).join('')}</select></label>
       <label>Façon de répondre<select data-set="inputMode">${[['auto', 'Automatique (choix puis écriture)'], ['choice', 'Toujours des choix (plus facile)'], ['type', 'Toujours écrire (plus difficile)']].map(([k, n]) => `<option value="${k}" ${s.inputMode === k ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
@@ -352,7 +353,12 @@ const Parent = (() => {
   document.addEventListener('change', (e) => {
     const t = e.target;
     if (!t.closest('#app')) return;
-    if (t.dataset.set) {
+    if (t.dataset.pname) {
+      const pl = Store.data.profiles.find((x) => x.id === t.dataset.pname), name = t.value.trim().slice(0, 20);
+      if (!pl) return;
+      if (!name) { t.value = pl.name; toast('Le prénom ne peut pas être vide'); return; }
+      if (name !== pl.name) { pl.name = name; Store.save(); toast(`Joueur renommé : ${name} ✔`); const cur = prof(); if (cur) renderTop(cur); }
+    } else if (t.dataset.set) {
       const k = t.dataset.set; const s = settings();
       s[k] = t.type === 'checkbox' ? t.checked : (['dailyGoal', 'sessionLength'].includes(k) ? +t.value : t.value);
       if (['dailyGoal', 'sessionLength', 'inputMode', 'autoUnlock', 'featuredList'].includes(k)) Store.bumpSettings();
