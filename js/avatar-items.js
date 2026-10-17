@@ -164,11 +164,21 @@
   it('aura', 'shield', 'Bulle protectrice', '🔮', 'l14', (c, g) => c.E(0, g.by, 0, g.rx + 0.5, g.ry + 0.45, g.rz + 0.5, '#bfefff', { m: 'glass' }));
   it('aura', 'crown', 'Constellation', '🌌', 'l19', (c, g) => sparks(c, 12, (c, k, ph, an, col, s) => c.S(0, 0, 0, s, 0.03, col, { pts: 4, m: 'glow', an, ph }), ['#ffffff', '#ffe66d', '#a5b4fc'], 1.9, 0.2, 0.6, 0.1));
 
-  // règles de déblocage (niveau / trophée) : voir avatar-unlocks.js
+  // Tout s'achète avec des pièces (comme dans la boutique) ; le niveau ou le trophée indiqué par `lock` offre l'objet gratuitement.
+  // Le prix est celui d'origine ; à défaut il découle de la difficulté du déblocage (valeurs stables d'une version à l'autre).
+  for (const arr of Object.values(Parts.ITEMS)) for (const item of arr) if (typeof item.lock === 'number' && item.lock > 0) item.price = item.lock;
   for (const [key, lock] of Object.entries(Unlocks)) {
     const [slot, ...rest] = key.split(':'), id = rest.join(':');
     const item = (Parts.ITEMS[slot] || []).find((x) => x.id === id);
     if (item) item.lock = lock;
+  }
+  for (const [slot, arr] of Object.entries(Parts.ITEMS)) {
+    if (slot === 'eyeColor') continue;
+    for (const item of arr) {
+      if (!item.lock || item.price) continue;
+      const m = /^l(\d+)$/.exec(String(item.lock));
+      item.price = m ? Math.round((20 + 7 * +m[1]) / 5) * 5 : 90;
+    }
   }
 
   return { count: () => Object.keys(Parts.ITEMS).reduce((n, k) => n + Parts.ITEMS[k].length, 0) };
